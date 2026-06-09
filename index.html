@@ -76,6 +76,9 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .metric .mcol{font-family:var(--mono);font-size:9px;color:var(--acc-dim);font-weight:600}
 .metric .mval{font-family:var(--mono);font-size:21px;font-weight:700;letter-spacing:-.01em;margin-top:3px}
 .metric .mval.pos{color:var(--pos)} .metric .mval.neg{color:var(--neg)} .metric .mval.zero{color:var(--muted)}
+.metric .mconv{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:2px}
+.solve-conv{font-family:var(--mono);font-size:13px;color:var(--muted);margin-top:2px}
+.conv-inline{color:var(--faint);font-size:11px}
 .metric.lead{box-shadow:inset 3px 0 0 var(--acc)}
 .metric .bar{position:absolute;bottom:0;left:0;height:2px;background:var(--acc);opacity:.5}
 
@@ -165,7 +168,7 @@ datalist{display:none}
     <div class="glabel">Parâmetros Globais</div>
     <div class="gfields">
       <div class="field"><label>Período</label><select id="g_periodo"></select></div>
-      <div class="field"><label>Moeda</label><select id="g_moeda"></select></div>
+      <div class="field"><label>Lista de preço</label><select id="g_moeda"></select></div>
       <div class="field"><label>Dólar (R$)</label><input id="g_dolar" type="number" step="0.0001" value="5.1"></div>
       <div class="field"><label>Tipo Pgto</label><select id="g_tipo"></select></div>
       <div class="field"><label>Validade / Data Pgto</label><input id="g_validade" type="date"></div>
@@ -299,6 +302,9 @@ const fmt=(v,cur)=>{
 };
 const cls=v=>v===null||v===undefined?'zero':(v>0.0001?'pos':(v<-0.0001?'neg':'zero'));
 const brl=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const nfmt=v=>(v==null||Number.isNaN(v))?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+// valor está sempre em US$; conversão para reais = US$ × dólar informado
+function conv(v,g){ if(v==null||Number.isNaN(v)) return ''; const rate=parseFloat(g.dolar)||0; if(!rate) return ''; return 'R$ '+nfmt(v*rate); }
 function freightInfo(g,row){
   if(!FB && (row.frete===''||row.frete==null)) return '';
   const fr=resolveFrete(g,row);
@@ -419,7 +425,7 @@ function getGlobals(){
 }
 
 function rowCard(r){
-  const cur = getGlobals().moeda==='BRL'?'R$ ':'US$ ';
+  const cur = 'US$ ';  // preços sempre em dólar; moeda é só referência de lista
   return `<div class="panel card" data-id="${r.id}">
     <div class="card-head">
       <div class="card-tag">Linha <b>#${r.n}</b>${r.produto?' · '+r.produto:''}</div>
@@ -452,7 +458,7 @@ function rowCard(r){
 
 function renderResult(r){
   const g=getGlobals();
-  const cur = g.moeda==='BRL'?'R$ ':'US$ ';
+  const cur = 'US$ ';  // preços sempre em dólar; moeda é só referência de lista
   const box=document.querySelector(`[data-result="${r.id}"]`);
 
   if(r.mode==='meta' || r.mode==='desc'){
@@ -476,19 +482,21 @@ function renderResult(r){
         <div class="solve-main">
           <div class="solve-lab">Preço a praticar</div>
           <div class="solve-price">${fmt(sol.price,cur)}</div>
+          <div class="solve-conv">${conv(sol.price,g)}</div>
           <div class="solve-note">${noteTxt}</div>
         </div>
         <div class="solve-side">
           ${sideTop}
           <div class="ss-item"><span>= % sobre o Preço de Lista</span><b class="${cls(f.AA)}">${descPct.toFixed(2)}%</b></div>
           <div class="ss-item"><span>Preço de Lista (B)</span><b>${fmt(B,cur)}</b></div>
+          <div class="ss-item"><span>Preço de Lista convertido</span><b>${conv(B,g)||'—'}</b></div>
         </div>
       </div>
       <div class="metrics">
-        <div class="metric"><div class="mcol">AE</div><div class="mname">Margem Presumida<br>c/ PIS/COFINS</div><div class="mval ${cls(f.AE)}">${fmt(f.AE,cur)}</div></div>
-        <div class="metric"><div class="mcol">AI</div><div class="mname">Margem P&L<br>c/ PIS/COFINS</div><div class="mval ${cls(f.AI)}">${fmt(f.AI,cur)}</div></div>
-        <div class="metric lead"><div class="mcol">AA</div><div class="mname">Desconto Comercial SF<br>c/ PIS/COFINS</div><div class="mval ${cls(f.AA)}">${fmt(f.AA,cur)}</div></div>
-        <div class="metric"><div class="mcol">AB</div><div class="mname">Desconto Líquido</div><div class="mval ${cls(f.AB)}">${fmt(f.AB,cur)}</div></div>
+        <div class="metric"><div class="mcol">AE</div><div class="mname">Margem Presumida<br>c/ PIS/COFINS</div><div class="mval ${cls(f.AE)}">${fmt(f.AE,cur)}</div><div class="mconv">${conv(f.AE,g)}</div></div>
+        <div class="metric"><div class="mcol">AI</div><div class="mname">Margem P&L<br>c/ PIS/COFINS</div><div class="mval ${cls(f.AI)}">${fmt(f.AI,cur)}</div><div class="mconv">${conv(f.AI,g)}</div></div>
+        <div class="metric lead"><div class="mcol">AA</div><div class="mname">Desconto Comercial SF<br>c/ PIS/COFINS</div><div class="mval ${cls(f.AA)}">${fmt(f.AA,cur)}</div><div class="mconv">${conv(f.AA,g)}</div></div>
+        <div class="metric"><div class="mcol">AB</div><div class="mname">Desconto Líquido</div><div class="mval ${cls(f.AB)}">${fmt(f.AB,cur)}</div><div class="mconv">${conv(f.AB,g)}</div></div>
       </div>
       <div class="price-line">
         <span class="pl-item">Preço NET <b>${fmt(f.Y,cur)}</b></span>
@@ -513,6 +521,7 @@ function renderResult(r){
       <div class="mcol">${m.c}</div>
       <div class="mname">${m.n}</div>
       <div class="mval ${cls(m.v)}">${fmt(m.v,cur)}</div>
+      <div class="mconv">${conv(m.v,g)}</div>
     </div>`).join('');
   const Vtxt = res.V===null?'<span class="pl-warn">sem juros (falta validade)</span>':res.V.toFixed(0)+' dias';
   const det=[['B · Preço Lista',fmt(res.B,cur)],['C · ICMS emb %',(res.C*100).toFixed(2)+'%'],['D · ICMS emb',fmt(res.D,cur)],
@@ -524,8 +533,8 @@ function renderResult(r){
   box.innerHTML=`
     <div class="metrics">${metrics}</div>
     <div class="price-line">
-      <span class="pl-item">Preço de Lista <b>${fmt(res.B,cur)}</b></span>
-      <span class="pl-item">Preço NET <b>${fmt(res.Y,cur)}</b></span>
+      <span class="pl-item">Preço de Lista <b>${fmt(res.B,cur)}</b> <span class="conv-inline">${conv(res.B,g)}</span></span>
+      <span class="pl-item">Preço NET <b>${fmt(res.Y,cur)}</b> <span class="conv-inline">${conv(res.Y,g)}</span></span>
       <span class="pl-item">Juros <b>${Vtxt}</b></span>
       ${freightInfo(g,r)}
     </div>

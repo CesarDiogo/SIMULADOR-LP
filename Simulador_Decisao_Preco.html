@@ -435,7 +435,7 @@ function rowCard(r){
       <div class="field"><label>Fat</label><select data-f="fat">${opt(DD.fat,r.fat)}</select></div>
       <div class="field"><label>Exp</label><select data-f="exp">${opt(DD.exp,r.exp)}</select></div>
       <div class="field"><label>UF Exp <span style="color:var(--faint)">(opc)</span></label><select data-f="ufExp"><option value="">(usa UF Fat)</option>${opt(DD.ufExp,r.ufExp)}</select></div>
-      ${FB? `<div class="field"><label>Cidade <span style="color:var(--faint)">(frete)</span></label><input list="dl_city_${r.id}" data-f="cidade" value="${(r.cidade||'').replace(/"/g,'&quot;')}" placeholder="${r.ufExp?'buscar cidade…':'selecione a UF'}"><datalist id="dl_city_${r.id}">${citiesFor(r.fat,r.ufExp).map(c=>`<option value="${c.replace(/"/g,'&quot;')}">`).join('')}</datalist></div>` : ''}
+      ${FB? `<div class="field"><label>Cidade <span style="color:var(--faint)">(frete)</span></label><select data-f="cidade">${(function(){var cs=citiesFor(r.fat,r.ufExp); if(!r.ufExp) return '<option value="">— selecione a UF Exp —</option>'; if(cs.length===0) return '<option value="">(sem cidades p/ esta UF)</option>'; return '<option value="">— selecione a cidade —</option>'+cs.map(function(c){return '<option '+(c===r.cidade?'selected':'')+'>'+c+'</option>';}).join('');})()}</select></div>` : ''}
       <div class="field"><label>Embalagem</label><select data-f="emb">${opt(DD.emb,r.emb)}</select></div>
       <div class="field"><label>Lista REP?</label><select data-f="listaRep">${opt(DD.listaRep,r.listaRep)}</select></div>
       <div class="field"><label>Frete manual <span style="color:var(--faint)">(${FB?'sobrepõe tabela':'opc'})</span></label><input type="number" step="0.01" data-f="frete" value="${r.frete||''}" placeholder="${FB?'auto (tabela)':'0'}"></div>
@@ -554,7 +554,7 @@ document.getElementById('rows').addEventListener('input',e=>{
   const card=e.target.closest('.card'); const id=+card.dataset.id;
   const r=rows.find(x=>x.id===id); r[f]=e.target.value;
   // trocar Fat/UF muda a lista de cidades do frete -> re-renderiza a linha
-  if((f==='ufExp'||f==='fat') && FB){ if(f==='fat'){ r.cidade=''; } renderAll(); return; }
+  if((f==='ufExp'||f==='fat') && FB){ r.cidade=''; renderAll(); return; }
   renderResult(r);
   // update tag product name
   if(f==='produto'){card.querySelector('.card-tag').innerHTML=`Linha <b>#${r.n}</b>${r.produto?' · '+r.produto:''}`;}

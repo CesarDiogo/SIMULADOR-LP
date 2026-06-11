@@ -118,6 +118,15 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .btn.primary{background:var(--acc);color:#0b1110;border-color:var(--acc)}
 .btn.primary:hover{background:#9cff7a;color:#0b1110}
 
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal-bg.open{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#msg_text{width:100%;flex:1;min-height:240px;resize:vertical;background:var(--panel2);border:none;border-bottom:1px solid var(--line);color:var(--ink);font-family:var(--mono);font-size:14px;line-height:1.5;padding:16px;outline:none}
+.modal-actions{display:flex;gap:10px;padding:14px 16px;flex-wrap:wrap}
+.msg-hint{font-family:var(--mono);font-size:11px;color:var(--faint);padding:0 16px 14px}
+.msg-hint.ok{color:var(--pos)}
+
 .empty{padding:40px 20px;text-align:center;color:var(--faint);font-family:var(--mono);font-size:13px}
 footer{margin-top:30px;color:var(--faint);font-size:11px;font-family:var(--mono);line-height:1.6;border-top:1px solid var(--line);padding-top:16px}
 datalist{display:none}
@@ -181,7 +190,23 @@ datalist{display:none}
 
   <div class="toolbar">
     <button class="btn primary" id="add">+ Adicionar Produto</button>
+    <button class="btn" id="msg">Gerar mensagem (WhatsApp)</button>
     <button class="btn" id="clear">Limpar Tudo</button>
+  </div>
+
+  <div class="modal-bg" id="modal_bg">
+    <div class="modal">
+      <div class="modal-head">
+        <span>Mensagem para envio</span>
+        <button class="rm" id="modal_close" title="Fechar">✕</button>
+      </div>
+      <textarea id="msg_text" readonly></textarea>
+      <div class="modal-actions">
+        <button class="btn primary" id="msg_copy">Copiar texto</button>
+        <button class="btn" id="msg_wa">Abrir no WhatsApp</button>
+      </div>
+      <div class="msg-hint" id="msg_hint"></div>
+    </div>
   </div>
 
   <footer id="foot"></footer>
@@ -586,6 +611,63 @@ document.getElementById('rows').addEventListener('click',e=>{
 function toggleDDF(){document.getElementById('ddf_wrap').style.display=document.getElementById('g_tipo').value==='DDF'?'flex':'none';}
 document.getElementById('add').addEventListener('click',addRow);
 document.getElementById('clear').addEventListener('click',()=>{rows=[];renderAll();});
+
+// ---- Mensagem para WhatsApp ----
+function fmtDateBR(iso){ if(!iso) return '—'; const p=String(iso).split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : iso; }
+function rowQuote(g,r){
+  if(!r.produto||!r.fat||!r.exp||!r.emb) return null;
+  let price;
+  if(r.mode==='meta'||r.mode==='desc'){
+    const sol = r.mode==='desc' ? solvePrice(g,r,'','',r.tgtAA) : solvePrice(g,r,r.tgtAE,r.tgtAI,'');
+    if(sol.err) return null; price=sol.price;
+  } else {
+    const res=calc(g,r); if(res.err) return null;
+    const v=parseFloat(r.venda);
+    price=(r.venda!==''&&!Number.isNaN(v))?v:res.B;
+  }
+  const cidade=r.cidade||'';
+  const uf=r.ufExp||FUF[r.fat]||'';
+  const ptx=parseFloat(g.dolar)||0;
+  const origem=FAT2ORIG[r.fat]||r.fat;
+  const valor = g.moeda==='BRL' ? ('R$ '+nfmt(price*ptx)) : ('US$ '+nfmt(price));
+  return {produto:r.produto, cond: cidade?'CIF':'FOB', cidade, uf, origem, moeda:g.moeda, ptx, valor, venc:fmtDateBR(g.validade)};
+}
+function buildMessage(){
+  const g=getGlobals();
+  const qs=[]; rows.forEach(r=>{ const q=rowQuote(g,r); if(q) qs.push(q); });
+  if(qs.length===0) return '';
+  const allSame=k=>qs.every(q=>q[k]===qs[0][k]);
+  const sameOrigem=allSame('origem');
+  const head=['*Cotação*'];
+  if(sameOrigem) head.push('Faturamento: '+qs[0].origem);
+  head.push('Moeda: '+qs[0].moeda+(qs[0].moeda==='BRL'?(' (PTAX '+nfmt(qs[0].ptx)+')'):' (PTAX do dia do vcto)'));
+  head.push('Vencimento: '+qs[0].venc);
+  const linhas=qs.map(q=>{
+    const destino = q.cond==='CIF' ? ('CIF '+q.cidade+'/'+q.uf) : ('FOB'+(q.uf?('/'+q.uf):''));
+    const fat = sameOrigem ? '' : (' — Fat: '+q.origem);
+    return '• '+q.produto+' — '+q.valor+' — '+destino+fat;
+  });
+  return head.join('\n')+'\n\n'+linhas.join('\n');
+}
+document.getElementById('msg').addEventListener('click',()=>{
+  const txt=buildMessage();
+  const hint=document.getElementById('msg_hint');
+  if(!txt){ hint.className='msg-hint'; document.getElementById('msg_text').value=''; hint.textContent='Nenhum produto válido. Preencha ao menos um produto com preço.'; }
+  else { document.getElementById('msg_text').value=txt; hint.className='msg-hint'; hint.textContent='Confira o texto e use "Copiar" ou "Abrir no WhatsApp".'; }
+  document.getElementById('modal_bg').classList.add('open');
+});
+document.getElementById('modal_close').addEventListener('click',()=>document.getElementById('modal_bg').classList.remove('open'));
+document.getElementById('modal_bg').addEventListener('click',e=>{ if(e.target.id==='modal_bg') e.target.classList.remove('open'); });
+document.getElementById('msg_copy').addEventListener('click',async ()=>{
+  const ta=document.getElementById('msg_text'); const hint=document.getElementById('msg_hint');
+  const txt=ta.value; if(!txt) return;
+  try{ await navigator.clipboard.writeText(txt); hint.className='msg-hint ok'; hint.textContent='✓ Texto copiado. Cole no WhatsApp.'; }
+  catch(e){ ta.focus(); ta.select(); try{ document.execCommand('copy'); hint.className='msg-hint ok'; hint.textContent='✓ Texto copiado.'; }catch(_){ hint.className='msg-hint'; hint.textContent='Selecione o texto e copie manualmente.'; } }
+});
+document.getElementById('msg_wa').addEventListener('click',()=>{
+  const txt=document.getElementById('msg_text').value; if(!txt) return;
+  window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
+});
 
 function refreshGlobals(){
   const keepP=document.getElementById('g_periodo').value;

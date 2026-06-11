@@ -632,6 +632,7 @@ function rowQuote(g,r){
   const valor = g.moeda==='BRL' ? ('R$ '+nfmt(price*ptx)) : ('US$ '+nfmt(price));
   return {produto:r.produto, cond: cidade?'CIF':'FOB', cidade, uf, origem, moeda:g.moeda, ptx, valor, venc:fmtDateBR(g.validade)};
 }
+function mesBR(ym){ if(!ym) return ''; const p=String(ym).split('-'); if(p.length<2) return ym; const m=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][parseInt(p[1],10)-1]||p[1]; return m+'/'+p[0]; }
 function buildMessage(){
   const g=getGlobals();
   const qs=[]; rows.forEach(r=>{ const q=rowQuote(g,r); if(q) qs.push(q); });
@@ -642,12 +643,14 @@ function buildMessage(){
   if(sameOrigem) head.push('Faturamento: '+qs[0].origem);
   head.push('Moeda: '+qs[0].moeda+(qs[0].moeda==='BRL'?(' (PTAX '+nfmt(qs[0].ptx)+')'):' (PTAX do dia do vcto)'));
   head.push('Vencimento: '+qs[0].venc);
-  const linhas=qs.map(q=>{
-    const destino = q.cond==='CIF' ? ('CIF '+q.cidade+'/'+q.uf) : ('FOB'+(q.uf?('/'+q.uf):''));
-    const fat = sameOrigem ? '' : (' — Fat: '+q.origem);
-    return '• '+q.produto+' — '+q.valor+' — '+destino+fat;
-  });
-  return head.join('\n')+'\n\n'+linhas.join('\n');
+  const ent=mesBR(g.freightMonth); if(ent) head.push('Entrega: '+ent);
+  const fatTag=q=> sameOrigem ? '' : (' — Fat: '+q.origem);
+  const cif=qs.filter(q=>q.cond==='CIF').map(q=>'• '+q.produto+' — '+q.valor+' — '+q.cidade+'/'+q.uf);
+  const fob=qs.filter(q=>q.cond==='FOB').map(q=>'• '+q.produto+' — '+q.valor+(q.uf?(' — '+q.uf):'')+fatTag(q));
+  const blocos=[];
+  if(cif.length) blocos.push('*CIF*\n'+cif.join('\n'));
+  if(fob.length) blocos.push('*FOB*\n'+fob.join('\n'));
+  return head.join('\n')+'\n\n'+blocos.join('\n\n');
 }
 document.getElementById('msg').addEventListener('click',()=>{
   const txt=buildMessage();

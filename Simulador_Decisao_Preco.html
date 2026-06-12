@@ -39,8 +39,7 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px}
 .globals{padding:18px 18px 20px;margin-bottom:22px}
 
-.updater{padding:14px 18px;margin-bottom:14px}
-.upd-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.updater{padding:14px 18px;margin-bottom:14px}.upd-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .upd-left{display:flex;flex-direction:column;gap:5px}
 .base-info{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
 .upd-actions{display:flex;gap:10px;flex-wrap:wrap}
@@ -51,6 +50,10 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .glabel{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .glabel::before{content:"";width:6px;height:6px;background:var(--acc);border-radius:50%;box-shadow:0 0 8px var(--acc)}
 .gfields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.period-ref{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 20px}
+.period-ref b{color:var(--ink);font-weight:600}
+.period-ref .warn{color:var(--warn)}
+.period-ref:empty{display:none}
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase}
 .field input,.field select{
@@ -188,6 +191,7 @@ datalist{display:none}
       <div class="field" id="ddf_wrap" style="display:none"><label>Qtd DDF</label><select id="g_ddf"></select></div>
       <div class="field" id="fmonth_wrap" style="display:none"><label>Mês do frete</label><select id="g_freightMonth"></select></div>
     </div>
+    <div class="period-ref" id="period_ref"></div>
   </div>
 
   <div class="rows" id="rows"></div>
@@ -617,7 +621,7 @@ document.getElementById('rows').addEventListener('click',e=>{
   }
 });
 ['g_periodo','g_moeda','g_dolar','g_tipo','g_validade','g_ddf','g_freightMonth'].forEach(id=>{
-  document.addEventListener('input',e=>{if(e.target.id===id){toggleDDF();rows.forEach(renderResult);}});
+  document.addEventListener('input',e=>{if(e.target.id===id){toggleDDF();updatePeriodRef();rows.forEach(renderResult);}});
 });
 function toggleDDF(){document.getElementById('ddf_wrap').style.display=document.getElementById('g_tipo').value==='DDF'?'flex':'none';}
 document.getElementById('add').addEventListener('click',addRow);
@@ -654,18 +658,17 @@ function buildMessage(){
   const juros=isBRL?per.E2:per.D2, antcp=isBRL?per.G2:per.F2;
   const allSame=k=>qs.every(q=>q[k]===qs[0][k]);
   const head=['*Cotação*'];
-  if(allSame('origem')) head.push('Faturamento: '+qs[0].origem);
   head.push('Moeda: '+qs[0].moeda+(isBRL?(' (PTAX '+nfmt(qs[0].ptx)+')'):' (PTAX do dia do vcto)'));
   if(juros!=null||antcp!=null) head.push('Juros: '+pct(juros)+'  |  Antecipação: '+pct(antcp));
   head.push('Vencimento: '+qs[0].venc);
   if(g.freightMonth) head.push('Entrega: '+mesBR(g.freightMonth));
   const blocos=[];
-  // CIF agrupado por cidade/UF
+  // CIF agrupado por cidade/UF (destino)
   const cifG={}; qs.filter(q=>q.cond==='CIF').forEach(q=>{ const k=q.cidade+'/'+q.uf; (cifG[k]=cifG[k]||[]).push(q); });
   Object.keys(cifG).forEach(loc=>{ blocos.push('*CIF* '+loc+'\n'+cifG[loc].map(q=>'• '+q.produto+' — '+q.valor).join('\n')); });
-  // FOB agrupado por UF
-  const fobG={}; qs.filter(q=>q.cond==='FOB').forEach(q=>{ const k=q.uf||'—'; (fobG[k]=fobG[k]||[]).push(q); });
-  Object.keys(fobG).forEach(uf=>{ blocos.push('*FOB* '+uf+'\n'+fobG[uf].map(q=>'• '+q.produto+' — '+q.valor).join('\n')); });
+  // FOB agrupado por faturamento (origem); UF de destino na linha
+  const fobG={}; qs.filter(q=>q.cond==='FOB').forEach(q=>{ const k=q.origem; (fobG[k]=fobG[k]||[]).push(q); });
+  Object.keys(fobG).forEach(o=>{ blocos.push('*FOB* '+o+'\n'+fobG[o].map(q=>'• '+q.produto+' — '+q.valor+(q.uf?(' — '+q.uf):'')).join('\n')); });
   return head.join('\n')+'\n\n'+blocos.join('\n\n');
 }
 document.getElementById('msg').addEventListener('click',()=>{
@@ -696,6 +699,17 @@ function refreshGlobals(){
   fillSelect('g_ddf',DD.i4);
   document.getElementById('dl_produto').innerHTML=DD.produto.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">`).join('');
   toggleDDF();
+  updatePeriodRef();
+}
+function updatePeriodRef(){
+  const el=document.getElementById('period_ref'); if(!el) return;
+  const sel=document.getElementById('g_periodo'); const p=sel?sel.value:'';
+  const d=PER[p]||{};
+  const parts=[];
+  if(d.B4) parts.push('Vencimento da lista: <b>'+fmtDateBR(d.B4)+'</b>');
+  if(d.entDe||d.entAte) parts.push('Entrega: <b>'+fmtDateBR(d.entDe)+' a '+fmtDateBR(d.entAte)+'</b>');
+  else parts.push('<span class="warn">Janela de entrega: re-suba a tabela de preços</span>');
+  el.innerHTML=parts.join('');
 }
 function setBaseInfo(when){
   const el=document.getElementById('base_info');

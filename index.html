@@ -254,7 +254,7 @@ function extractBase(wb){
   for(let i=1;i<ic.length;i++){ const r=ic[i]; if(!r) continue; const h=r[7]; if(h===null||h==='') continue; if(String(h) in icms) continue; icms[String(h)]=num(r[6]); }
   const ap=sheet('Apoio'); const per={}, fatUF={};
   for(let i=1;i<ap.length;i++){ const r=ap[i]; if(!r) continue;
-    const p=r[8]; if(p!==null&&p!==''&&String(p).startsWith('Q')&&!(String(p) in per)) per[String(p)]={B4:serialToISO(r[9]),E2:num(r[15]),D2:num(r[16]),G2:num(r[17]),F2:num(r[18]),T:r[19]};
+    const p=r[8]; if(p!==null&&p!==''&&String(p).startsWith('Q')&&!(String(p) in per)) per[String(p)]={B4:serialToISO(r[9]),E2:num(r[15]),D2:num(r[16]),G2:num(r[17]),F2:num(r[18]),T:r[19],entDe:serialToISO(r[13]),entAte:serialToISO(r[14])};
     const b=r[1]; if(b!==null&&b!==''&&b!=='FAT'&&!(String(b) in fatUF)) fatUF[String(b)]=r[2]!=null?String(r[2]):''; }
   const col=(ci,lo,hi)=>{ const out=[]; for(let rr=lo;rr<=hi;rr++){ const r=ap[rr-1]; if(!r)continue; const v=r[ci]; if(v!==null&&v!==''&&!out.includes(String(v))) out.push(String(v)); } return out; };
   const dd={ periodo:col(8,2,11), fat:col(1,2,12), exp:col(0,2,15), ufExp:col(4,2,29), produto:col(6,2,683), emb:col(22,2,5), listaRep:col(24,2,3), moeda:col(28,2,3), tipoPgto:col(30,2,3), i4:col(26,2,21) };
@@ -633,23 +633,29 @@ function rowQuote(g,r){
   return {produto:r.produto, cond: cidade?'CIF':'FOB', cidade, uf, origem, moeda:g.moeda, ptx, valor, venc:fmtDateBR(g.validade)};
 }
 function mesBR(ym){ if(!ym) return ''; const p=String(ym).split('-'); if(p.length<2) return ym; const m=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][parseInt(p[1],10)-1]||p[1]; return m+'/'+p[0]; }
+function pct(v){ return (v==null)?'—':((Number(v)*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:2})+'%'); }
 function buildMessage(){
   const g=getGlobals();
   const qs=[]; rows.forEach(r=>{ const q=rowQuote(g,r); if(q) qs.push(q); });
   if(qs.length===0) return '';
+  const per=PER[g.periodo]||{};
+  const isBRL=qs[0].moeda==='BRL';
+  const juros=isBRL?per.E2:per.D2, antcp=isBRL?per.G2:per.F2;
   const allSame=k=>qs.every(q=>q[k]===qs[0][k]);
-  const sameOrigem=allSame('origem');
   const head=['*Cotação*'];
-  if(sameOrigem) head.push('Faturamento: '+qs[0].origem);
-  head.push('Moeda: '+qs[0].moeda+(qs[0].moeda==='BRL'?(' (PTAX '+nfmt(qs[0].ptx)+')'):' (PTAX do dia do vcto)'));
+  if(allSame('origem')) head.push('Faturamento: '+qs[0].origem);
+  head.push('Moeda: '+qs[0].moeda+(isBRL?(' (PTAX '+nfmt(qs[0].ptx)+')'):' (PTAX do dia do vcto)'));
+  if(juros!=null||antcp!=null) head.push('Juros: '+pct(juros)+'  |  Antecipação: '+pct(antcp));
   head.push('Vencimento: '+qs[0].venc);
-  const ent=mesBR(g.freightMonth); if(ent) head.push('Entrega: '+ent);
-  const fatTag=q=> sameOrigem ? '' : (' — Fat: '+q.origem);
-  const cif=qs.filter(q=>q.cond==='CIF').map(q=>'• '+q.produto+' — '+q.valor+' — '+q.cidade+'/'+q.uf);
-  const fob=qs.filter(q=>q.cond==='FOB').map(q=>'• '+q.produto+' — '+q.valor+(q.uf?(' — '+q.uf):'')+fatTag(q));
+  if(per.entDe||per.entAte) head.push('Entrega: '+fmtDateBR(per.entDe)+' a '+fmtDateBR(per.entAte));
+  else if(g.freightMonth) head.push('Entrega: '+mesBR(g.freightMonth));
   const blocos=[];
-  if(cif.length) blocos.push('*CIF*\n'+cif.join('\n'));
-  if(fob.length) blocos.push('*FOB*\n'+fob.join('\n'));
+  // CIF agrupado por cidade/UF
+  const cifG={}; qs.filter(q=>q.cond==='CIF').forEach(q=>{ const k=q.cidade+'/'+q.uf; (cifG[k]=cifG[k]||[]).push(q); });
+  Object.keys(cifG).forEach(loc=>{ blocos.push('*CIF* '+loc+'\n'+cifG[loc].map(q=>'• '+q.produto+' — '+q.valor).join('\n')); });
+  // FOB agrupado por UF
+  const fobG={}; qs.filter(q=>q.cond==='FOB').forEach(q=>{ const k=q.uf||'—'; (fobG[k]=fobG[k]||[]).push(q); });
+  Object.keys(fobG).forEach(uf=>{ blocos.push('*FOB* '+uf+'\n'+fobG[uf].map(q=>'• '+q.produto+' — '+q.valor).join('\n')); });
   return head.join('\n')+'\n\n'+blocos.join('\n\n');
 }
 document.getElementById('msg').addEventListener('click',()=>{

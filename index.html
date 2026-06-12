@@ -59,6 +59,10 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
   transition:border-color .15s,box-shadow .15s;
 }
 .field input:focus,.field select:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(139,240,106,.12)}
+.inp-clear{position:relative}
+.inp-clear input{padding-right:34px;width:100%}
+.clear-x{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;background:var(--line);color:var(--ink);border-radius:6px;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.clear-x:hover{background:var(--neg);color:#0b1110}
 .field select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%237e9aa0' stroke-width='1.6' fill='none'/></svg>");background-repeat:no-repeat;background-position:right 11px center;padding-right:30px}
 
 .rows{display:flex;flex-direction:column;gap:18px}
@@ -462,7 +466,7 @@ function rowCard(r){
       <button class="rm" data-rm="${r.id}" title="Remover">✕</button>
     </div>
     <div class="card-inputs">
-      <div class="field"><label>Produto</label><input list="dl_produto" data-f="produto" value="${r.produto||''}" placeholder="buscar..."></div>
+      <div class="field"><label>Produto</label><div class="inp-clear"><input list="dl_produto" data-f="produto" value="${r.produto||''}" placeholder="buscar..."><button class="clear-x" type="button" data-clear="${r.id}" title="Limpar" tabindex="-1">×</button></div></div>
       <div class="field"><label>Fat</label><select data-f="fat">${opt(DD.fat,r.fat)}</select></div>
       <div class="field"><label>Exp</label><select data-f="exp">${opt(DD.exp,r.exp)}</select></div>
       <div class="field"><label>UF Exp <span style="color:var(--faint)">(opc)</span></label><select data-f="ufExp"><option value="">(usa UF Fat)</option>${opt(DD.ufExp,r.ufExp)}</select></div>
@@ -597,6 +601,13 @@ document.getElementById('rows').addEventListener('click',e=>{
   if(e.target.dataset.mode){
     const id=+e.target.dataset.mid; const r=rows.find(x=>x.id===id);
     r.mode=e.target.dataset.mode; renderAll(); return;
+  }
+  if(e.target.dataset.clear){
+    const id=+e.target.dataset.clear; const r=rows.find(x=>x.id===id); r.produto='';
+    const card=e.target.closest('.card'); const inp=card.querySelector('[data-f="produto"]');
+    if(inp){ inp.value=''; inp.focus(); }
+    card.querySelector('.card-tag').innerHTML=`Linha <b>#${r.n}</b>`;
+    renderResult(r); return;
   }
   if(e.target.dataset.rm){const id=+e.target.dataset.rm;rows=rows.filter(x=>x.id!==id);rows.forEach((r,i)=>r.n=i+1);renderAll();}
   if(e.target.dataset.det||e.target.closest('[data-det]')){

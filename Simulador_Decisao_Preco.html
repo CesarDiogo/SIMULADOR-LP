@@ -100,6 +100,8 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .ms{background:transparent;border:none;color:var(--muted);font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:7px 12px;cursor:pointer;transition:.15s}
 .ms:hover{color:var(--ink)}
 .ms.on{background:var(--acc);color:#0b1110;font-weight:700}
+.moeda-sw{display:inline-flex;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;vertical-align:middle;flex-shrink:0}
+.moeda-sw .ms{padding:3px 8px;font-size:9.5px;letter-spacing:.04em}
 .meta-f label{color:var(--acc)!important}
 
 .solve-block{display:grid;grid-template-columns:minmax(200px,1fr) 1.3fr;gap:1px;background:var(--line);border-top:1px solid var(--line)}
@@ -375,7 +377,7 @@ function calc(g,row){
   const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
   const I3=parseFloat(g.dolar)||0;
   const L=resolveFrete(g,row).value;
-  const M=parseFloat(row.venda)||0;
+  const _vendaRaw=parseFloat(row.venda)||0; const I3r=parseFloat(g.dolar)||1; const M=(row.vendaMoeda==='BRL'&&_vendaRaw)?_vendaRaw/I3r:_vendaRaw;
   const B=Y_pr||0;                 // Preço de Lista
   const C=X_pr||0;                 // ICMS emb %
   const D=B*C;                     // ICMS emb usd
@@ -488,7 +490,7 @@ function rowCard(r){
            <div class="field meta-f"><label>Meta Margem P&L</label><input type="number" step="0.01" data-f="tgtAI" value="${r.tgtAI||''}" placeholder="opcional"></div>`
         : r.mode==='desc'
         ? `<div class="field meta-f"><label>Desconto Comercial SF c/ PIS/COFINS</label><input type="number" step="0.01" data-f="tgtAA" value="${r.tgtAA||''}" placeholder="ex: 150"></div>`
-        : `<div class="field"><label>Preço Venda <span style="color:var(--faint)">(opc)</span></label><input type="number" step="0.01" data-f="venda" value="${r.venda||''}" placeholder="auto"></div>`}
+        : `<div class="field"><label style="display:flex;align-items:center;justify-content:space-between;gap:6px">Preço Venda <span style="color:var(--faint)">(opc)</span><span class="moeda-sw"><button class="ms ${(!r.vendaMoeda||r.vendaMoeda==='USD')?'on':''}" data-vmoed="USD" data-vid="${r.id}">US$</button><button class="ms ${r.vendaMoeda==='BRL'?'on':''}" data-vmoed="BRL" data-vid="${r.id}">R$</button></span></label><input type="number" step="0.01" data-f="venda" value="${r.venda||''}" placeholder="${r.vendaMoeda==='BRL'?'auto (R$)':'auto (US$)'}"></div>`}
     </div>
     <div class="result" data-result="${r.id}"></div>
   </div>`;
@@ -571,6 +573,7 @@ function renderResult(r){
   box.innerHTML=`
     <div class="metrics">${metrics}</div>
     <div class="price-line">
+      ${(r.venda!==''&&!Number.isNaN(parseFloat(r.venda)))?(r.vendaMoeda==='BRL'?`<span class="pl-item">Preço informado <b>R$ ${nfmt(parseFloat(r.venda))}</b> <span class="conv-inline">${(parseFloat(g.dolar)||0)?'≈ US$ '+nfmt(parseFloat(r.venda)/(parseFloat(g.dolar)||1)):''}</span></span>`:`<span class="pl-item">Preço informado <b>${fmt(parseFloat(r.venda),cur)}</b> <span class="conv-inline">${conv(parseFloat(r.venda),g)}</span></span>`):''}
       <span class="pl-item">Preço de Lista <b>${fmt(res.B,cur)}</b> <span class="conv-inline">${conv(res.B,g)}</span></span>
       <span class="pl-item">Preço NET <b>${fmt(res.Y,cur)}</b> <span class="conv-inline">${conv(res.Y,g)}</span></span>
       <span class="pl-item">Juros <b>${Vtxt}</b></span>
@@ -592,7 +595,7 @@ function renderAll(){
 
 function addRow(){
   uid++;
-  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:''});
+  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD'});
   renderAll();
 }
 
@@ -619,6 +622,7 @@ document.getElementById('rows').addEventListener('click',e=>{
     card.querySelector('.card-tag').innerHTML=`Linha <b>#${r.n}</b>`;
     renderResult(r); return;
   }
+  if(e.target.dataset.vmoed){const id=+e.target.dataset.vid;const r=rows.find(x=>x.id===id);if(r){r.vendaMoeda=e.target.dataset.vmoed;renderAll();}return;}
   if(e.target.dataset.rm){const id=+e.target.dataset.rm;rows=rows.filter(x=>x.id!==id);rows.forEach((r,i)=>r.n=i+1);renderAll();}
   if(e.target.dataset.det||e.target.closest('[data-det]')){
     const btn=e.target.closest('[data-det]'); const id=btn.dataset.det;

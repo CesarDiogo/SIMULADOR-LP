@@ -703,7 +703,7 @@ function buildMessage(){
   // FOB agrupado por faturamento (origem); UF de destino na linha
   const fobG={}; qs.filter(q=>q.cond==='FOB').forEach(q=>{ const k=q.origem; (fobG[k]=fobG[k]||[]).push(q); });
   Object.keys(fobG).forEach(o=>{ blocos.push('*FOB*- '+o+'\n'+fobG[o].map(q=>'* *'+q.produto+'*: '+q.valor+(q.uf?(' — '+q.uf):'')).join('\n')); });
-  return head.join('\n')+'\n'+blocos.join('\n');
+  return head.join('\n')+'\n\n'+blocos.join('\n');
 }
 document.getElementById('msg').addEventListener('click',()=>{
   const txt=buildMessage();

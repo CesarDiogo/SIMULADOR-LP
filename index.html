@@ -148,6 +148,25 @@ datalist{display:none}
   .metrics{grid-template-columns:repeat(2,1fr)}
   .metric .mval{font-size:18px}
 }
+/* ---- Mobile UX ---- */
+.fab{display:none}
+@media(max-width:640px){
+  .sub{display:none}
+  .rm{width:44px;height:44px;font-size:18px;border-radius:10px}
+  .ms{font-size:9px;padding:6px 8px}
+  .upd-row{flex-direction:column;align-items:flex-start}
+  .upd-actions{width:100%;display:flex;gap:8px}
+  .upd-actions .btn{flex:1;text-align:center;justify-content:center;display:flex;align-items:center}
+  .glob-toggle{cursor:pointer;user-select:none}
+  .glabel .glob-arrow{margin-left:auto;font-style:normal;transition:transform .2s;display:inline-block;font-size:14px}
+  .globals.collapsed .gfields,.globals.collapsed .period-ref{display:none}
+  .globals.collapsed .glob-arrow{transform:rotate(-90deg)}
+  #msg_text{min-height:140px}
+  .moeda-sw .ms{padding:3px 5px;font-size:9px}
+  .fab{display:flex;position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--acc);color:#0b1110;border:none;font-size:30px;font-weight:900;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(139,240,106,.4);cursor:pointer;z-index:40;line-height:1}
+  .fab:active{transform:scale(.93)}
+  #add{display:none}
+}
 </style>
 </head>
 <body>
@@ -188,7 +207,7 @@ datalist{display:none}
   </div>
 
   <div class="panel globals">
-    <div class="glabel">Parâmetros Globais</div>
+    <div class="glabel glob-toggle" id="glob_toggle">Parâmetros Globais <span class="glob-arrow">▾</span></div>
     <div class="gfields">
       <div class="field"><label>Período</label><select id="g_periodo"></select></div>
       <div class="field"><label>Lista de preço</label><select id="g_moeda"></select></div>
@@ -208,6 +227,7 @@ datalist{display:none}
     <button class="btn" id="msg">Gerar mensagem (WhatsApp)</button>
     <button class="btn" id="clear">Limpar Tudo</button>
   </div>
+  <button class="fab" id="fab_add" title="Adicionar Produto">+</button>
 
   <div class="modal-bg" id="modal_bg">
     <div class="modal">
@@ -635,6 +655,11 @@ document.getElementById('rows').addEventListener('click',e=>{
 });
 function toggleDDF(){document.getElementById('ddf_wrap').style.display=document.getElementById('g_tipo').value==='DDF'?'flex':'none';}
 document.getElementById('add').addEventListener('click',addRow);
+document.getElementById('fab_add').addEventListener('click',addRow);
+document.getElementById('glob_toggle').addEventListener('click',function(){
+  if(window.innerWidth>640) return;
+  document.querySelector('.globals').classList.toggle('collapsed');
+});
 document.getElementById('clear').addEventListener('click',()=>{rows=[];renderAll();});
 
 // ---- Mensagem para WhatsApp ----

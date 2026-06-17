@@ -395,9 +395,9 @@ function calc(g,row){
   const p=PR[key];
   if(!p) return {err:'Combinação sem preço na base', key};
   const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
-  const I3=parseFloat(g.dolar)||0;
+  const I3=parseFloat(g.dolar)||1;
   const L=resolveFrete(g,row).value;
-  const _vendaRaw=parseFloat(row.venda)||0; const I3r=parseFloat(g.dolar)||1; const M=(row.vendaMoeda==='BRL'&&_vendaRaw)?_vendaRaw/I3r:_vendaRaw;
+  const _vendaRaw=parseFloat(row.venda)||0; const M=(row.vendaMoeda==='BRL'&&_vendaRaw)?_vendaRaw/I3:_vendaRaw;
   const B=Y_pr||0;                 // Preço de Lista
   const C=X_pr||0;                 // ICMS emb %
   const D=B*C;                     // ICMS emb usd
@@ -434,7 +434,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
   const key=[g.periodo,row.fat,row.exp,row.produto,row.emb,g.moeda].join('-');
   const p=PR[key]; if(!p) return {err:'Combinação sem preço na base',key};
   const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
-  const I3=parseFloat(g.dolar)||0, L=resolveFrete(g,row).value;
+  const I3=parseFloat(g.dolar)||1, L=resolveFrete(g,row).value;
   const ufFat=FUF[row.fat]||'', ufExp=row.ufExp||ufFat;
   const R=IC[ufFat+ufExp+String(PER[g.periodo].T)]!==undefined?IC[ufFat+ufExp+String(PER[g.periodo].T)]:0;
   const O=(row.listaRep==='SIM')?(W_pr||0):0;

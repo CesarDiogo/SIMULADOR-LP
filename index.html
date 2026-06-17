@@ -827,7 +827,24 @@ document.getElementById('reset_freight').addEventListener('click', async ()=>{
 const prodDD=document.createElement('div'); prodDD.className='prod-dd'; document.body.appendChild(prodDD);
 let activeProdInput=null;
 function snorm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
-function positionProdDD(input){ const r=input.getBoundingClientRect(); prodDD.style.left=r.left+'px'; prodDD.style.top=(r.bottom+4)+'px'; prodDD.style.width=Math.max(r.width,240)+'px'; }
+function positionProdDD(input){
+  const r=input.getBoundingClientRect();
+  const vH=window.innerHeight;
+  const spaceBelow=vH-r.bottom-8;
+  const spaceAbove=r.top-8;
+  const maxH=Math.round(vH*0.46);
+  prodDD.style.left=r.left+'px';
+  prodDD.style.width=Math.max(r.width,240)+'px';
+  if(spaceBelow>=120||spaceBelow>=spaceAbove){
+    prodDD.style.top=(r.bottom+4)+'px';
+    prodDD.style.bottom='';
+    prodDD.style.maxHeight=Math.min(spaceBelow,maxH)+'px';
+  } else {
+    prodDD.style.top='';
+    prodDD.style.bottom=(vH-r.top+4)+'px';
+    prodDD.style.maxHeight=Math.min(spaceAbove,maxH)+'px';
+  }
+}
 function showProdDD(input){
   activeProdInput=input;
   const toks=snorm(input.value).trim().split(/\s+/).filter(Boolean);

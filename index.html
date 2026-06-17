@@ -830,19 +830,22 @@ function snorm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f
 function positionProdDD(input){
   const r=input.getBoundingClientRect();
   const vH=window.innerHeight;
-  const spaceBelow=vH-r.bottom-8;
   const spaceAbove=r.top-8;
+  const spaceBelow=vH-r.bottom-8;
   const maxH=Math.round(vH*0.46);
+  const isMobile=window.innerWidth<=640;
   prodDD.style.left=r.left+'px';
   prodDD.style.width=Math.max(r.width,240)+'px';
-  if(spaceBelow>=120||spaceBelow>=spaceAbove){
-    prodDD.style.top=(r.bottom+4)+'px';
-    prodDD.style.bottom='';
-    prodDD.style.maxHeight=Math.min(spaceBelow,maxH)+'px';
-  } else {
+  // No mobile sempre abre para cima (evita ser tapado pelo teclado iOS)
+  const showAbove=isMobile?(spaceAbove>60):(spaceBelow<120&&spaceAbove>spaceBelow);
+  if(showAbove){
     prodDD.style.top='';
     prodDD.style.bottom=(vH-r.top+4)+'px';
     prodDD.style.maxHeight=Math.min(spaceAbove,maxH)+'px';
+  } else {
+    prodDD.style.top=(r.bottom+4)+'px';
+    prodDD.style.bottom='';
+    prodDD.style.maxHeight=Math.min(spaceBelow,maxH)+'px';
   }
 }
 function showProdDD(input){

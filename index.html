@@ -829,18 +829,20 @@ let activeProdInput=null;
 function snorm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
 function positionProdDD(input){
   const r=input.getBoundingClientRect();
-  const vH=window.innerHeight;
-  const spaceAbove=r.top-8;
-  const spaceBelow=vH-r.bottom-8;
+  // visualViewport reflete o espaço real visível no iOS com teclado aberto
+  const vH=(window.visualViewport?window.visualViewport.height:window.innerHeight);
+  const vOff=(window.visualViewport?window.visualViewport.offsetTop:0);
+  const rTop=r.top-vOff; // posição relativa ao viewport visual
+  const spaceAbove=rTop-8;
+  const spaceBelow=vH-rTop-r.height-8;
   const maxH=Math.round(vH*0.46);
   const isMobile=window.innerWidth<=640;
   prodDD.style.left=r.left+'px';
   prodDD.style.width=Math.max(r.width,240)+'px';
-  // No mobile sempre abre para cima (evita ser tapado pelo teclado iOS)
   const showAbove=isMobile?(spaceAbove>60):(spaceBelow<120&&spaceAbove>spaceBelow);
   if(showAbove){
     prodDD.style.top='';
-    prodDD.style.bottom=(vH-r.top+4)+'px';
+    prodDD.style.bottom=(vH-rTop+4+vOff)+'px';
     prodDD.style.maxHeight=Math.min(spaceAbove,maxH)+'px';
   } else {
     prodDD.style.top=(r.bottom+4)+'px';
@@ -856,6 +858,8 @@ function showProdDD(input){
   if(shown.length===0){ prodDD.innerHTML='<div class="ddinfo">nenhum produto encontrado</div>'; }
   else { prodDD.innerHTML=shown.map(p=>'<div class="opt" data-val="'+p.replace(/"/g,'&quot;')+'">'+p+'</div>').join('')+(matches.length>cap?('<div class="ddinfo">+'+(matches.length-cap)+' mais… refine a busca</div>'):''); }
   positionProdDD(input); prodDD.classList.add('open');
+  // re-posiciona após teclado iOS abrir (~350ms)
+  if(window.innerWidth<=640){ setTimeout(()=>{ if(activeProdInput===input) positionProdDD(input); },380); }
 }
 function hideProdDD(){ prodDD.classList.remove('open'); activeProdInput=null; }
 const rowsEl=document.getElementById('rows');
@@ -865,6 +869,7 @@ prodDD.addEventListener('mousedown',e=>{ const opt=e.target.closest('.opt'); if(
 document.addEventListener('click',e=>{ if(prodDD.contains(e.target)) return; if(e.target.dataset && e.target.dataset.f==='produto') return; hideProdDD(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') hideProdDD(); });
 window.addEventListener('scroll',()=>{ if(activeProdInput){ if(document.body.contains(activeProdInput)) positionProdDD(activeProdInput); else hideProdDD(); } }, true);
+if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{ if(activeProdInput) positionProdDD(activeProdInput); }); }
 
 // init
 const saved=loadSavedBase();

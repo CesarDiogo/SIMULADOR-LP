@@ -1,4 +1,4 @@
-const CACHE = 'simlp-v40';
+const CACHE = 'simlp-v41';
 const SHELL = [
   './',
   './index.html',
@@ -10,7 +10,12 @@ const SHELL = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // no-cache garante que busca o arquivo mais recente do servidor, ignorando HTTP cache
+  e.waitUntil(
+    caches.open(CACHE).then(c =>
+      Promise.all(SHELL.map(url => fetch(url, {cache:'no-cache'}).then(r => c.put(url, r))))
+    ).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -23,14 +28,12 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
-  // navegação: serve o index do cache (offline-first), tenta atualizar em segundo plano
   if (req.mode === 'navigate') {
     e.respondWith(
       caches.match('./index.html').then(cached => cached || fetch(req))
     );
     return;
   }
-  // demais recursos same-origin: cache-first com fallback à rede
   e.respondWith(
     caches.match(req).then(cached => cached || fetch(req).then(res => {
       if (res && res.status === 200 && new URL(req.url).origin === location.origin) {

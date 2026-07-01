@@ -498,7 +498,6 @@ function rowCard(r){
     </div>
     <div class="card-inputs">
       <div class="field"><label>Produto</label><div class="inp-clear"><input data-f="produto" autocomplete="off" value="${r.produto||''}" placeholder="buscar produto..."><button class="clear-x" type="button" data-clear="${r.id}" title="Limpar" tabindex="-1">×</button></div></div>
-      <div class="field"><label>Lista avulso <span style="color:var(--faint)">(US$ opc)</span></label><input type="number" step="0.01" data-f="precoLista" value="${r.precoLista||''}" placeholder="ex: 25.50"></div>
       <div class="field"><label>Fat</label><select data-f="fat">${opt(DD.fat,r.fat)}</select></div>
       <div class="field"><label>Exp</label><select data-f="exp">${opt(DD.exp,r.exp)}</select></div>
       <div class="field"><label>UF Exp <span style="color:var(--faint)">(opc)</span></label><select data-f="ufExp"><option value="">(usa UF Fat)</option>${opt(DD.ufExp,r.ufExp)}</select></div>
@@ -506,6 +505,7 @@ function rowCard(r){
       <div class="field"><label>Embalagem</label><select data-f="emb">${opt(DD.emb,r.emb)}</select></div>
       <div class="field"><label>Lista REP?</label><select data-f="listaRep">${opt(DD.listaRep,r.listaRep)}</select></div>
       <div class="field"><label>Frete manual <span style="color:var(--faint)">(${FB?'sobrepõe tabela':'opc'})</span></label><input type="number" step="0.01" data-f="frete" value="${r.frete||''}" placeholder="${FB?'auto (tabela)':'0'}"></div>
+      <div class="field"><label>Lista avulso <span style="color:var(--faint)">(US$ opc)</span></label><input type="number" step="0.01" data-f="precoLista" value="${r.precoLista||''}" placeholder="ex: 25.50"></div>
       ${r.mode==='meta'
         ? `<div class="field meta-f"><label>Meta Margem Presumida</label><input type="number" step="0.01" data-f="tgtAE" value="${r.tgtAE||''}" placeholder="opcional"></div>
            <div class="field meta-f"><label>Meta Margem P&L</label><input type="number" step="0.01" data-f="tgtAI" value="${r.tgtAI||''}" placeholder="opcional"></div>`

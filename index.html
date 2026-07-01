@@ -398,7 +398,7 @@ function calc(g,row){
   const I3=parseFloat(g.dolar)||1;
   const L=resolveFrete(g,row).value;
   const _vendaRaw=parseFloat(row.venda)||0; const M=(row.vendaMoeda==='BRL'&&_vendaRaw)?_vendaRaw/I3:_vendaRaw;
-  const B=Y_pr||0;                 // Preço de Lista
+  const B=(parseFloat(row.precoLista)>0)?parseFloat(row.precoLista):(Y_pr||0); // Preço de Lista (avulso sobrepõe base)
   const C=X_pr||0;                 // ICMS emb %
   const D=B*C;                     // ICMS emb usd
   const E=AE_pr||0;                // PIS/COFINS emb
@@ -442,7 +442,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
   const k_x=W/(1+W);
   const k_u=(AD_pr>0)?(0.00925/(1-0.00925)):0;
   const AC=O_pr+Q_pr-20, AD=O_pr;
-  const B=Y_pr||0, C=X_pr||0, D=B*C, E=AE_pr||0;   // fixos (não dependem do preço)
+  const B=(parseFloat(row.precoLista)>0)?parseFloat(row.precoLista):(Y_pr||0), C=X_pr||0, D=B*C, E=AE_pr||0;   // fixos (não dependem do preço)
   function priceFor(type,val){
     let T, den;
     if(type==='AE'){den=(1-k_u-k_x-O); T=(val+AC)/den;}
@@ -498,6 +498,7 @@ function rowCard(r){
     </div>
     <div class="card-inputs">
       <div class="field"><label>Produto</label><div class="inp-clear"><input data-f="produto" autocomplete="off" value="${r.produto||''}" placeholder="buscar produto..."><button class="clear-x" type="button" data-clear="${r.id}" title="Limpar" tabindex="-1">×</button></div></div>
+      <div class="field"><label>Preço Lista avulso <span style="color:var(--faint)">(US$ · opcional)</span></label><input type="number" step="0.01" data-f="precoLista" value="${r.precoLista||''}" placeholder="usa preço da base se vazio"></div>
       <div class="field"><label>Fat</label><select data-f="fat">${opt(DD.fat,r.fat)}</select></div>
       <div class="field"><label>Exp</label><select data-f="exp">${opt(DD.exp,r.exp)}</select></div>
       <div class="field"><label>UF Exp <span style="color:var(--faint)">(opc)</span></label><select data-f="ufExp"><option value="">(usa UF Fat)</option>${opt(DD.ufExp,r.ufExp)}</select></div>
@@ -615,7 +616,7 @@ function renderAll(){
 
 function addRow(){
   uid++;
-  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD'});
+  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD',precoLista:''});
   renderAll();
 }
 

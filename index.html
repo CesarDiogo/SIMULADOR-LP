@@ -498,7 +498,7 @@ function rowCard(r){
     </div>
     <div class="card-inputs">
       <div class="field"><label>Produto</label><div class="inp-clear"><input data-f="produto" autocomplete="off" value="${r.produto||''}" placeholder="buscar produto..."><button class="clear-x" type="button" data-clear="${r.id}" title="Limpar" tabindex="-1">×</button></div></div>
-      <div class="field"><label>Preço Lista avulso <span style="color:var(--faint)">(US$ · opcional)</span></label><input type="number" step="0.01" data-f="precoLista" value="${r.precoLista||''}" placeholder="usa preço da base se vazio"></div>
+      <div class="field"><label>Lista avulso <span style="color:var(--faint)">(US$ opc)</span></label><input type="number" step="0.01" data-f="precoLista" value="${r.precoLista||''}" placeholder="ex: 25.50"></div>
       <div class="field"><label>Fat</label><select data-f="fat">${opt(DD.fat,r.fat)}</select></div>
       <div class="field"><label>Exp</label><select data-f="exp">${opt(DD.exp,r.exp)}</select></div>
       <div class="field"><label>UF Exp <span style="color:var(--faint)">(opc)</span></label><select data-f="ufExp"><option value="">(usa UF Fat)</option>${opt(DD.ufExp,r.ufExp)}</select></div>
@@ -831,11 +831,12 @@ function snorm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f
 function positionProdDD(input){
   const r=input.getBoundingClientRect();
   const vv=window.visualViewport;
+  // vTop: offset do visual viewport em relação ao layout viewport (>0 quando teclado iOS abre)
+  // position:fixed usa layout viewport, getBoundingClientRect usa visual viewport
   const vTop=vv?vv.offsetTop:0;
   const vH=vv?vv.height:window.innerHeight;
-  const vBottom=vTop+vH;
-  const spaceAbove=r.top-vTop-8;
-  const spaceBelow=vBottom-r.bottom-8;
+  const spaceAbove=r.top-8;
+  const spaceBelow=vH-r.bottom-8;
   const maxH=Math.round(vH*0.46);
   const isMobile=window.innerWidth<=640;
   prodDD.style.left=r.left+'px';
@@ -843,11 +844,11 @@ function positionProdDD(input){
   const showAbove=isMobile?(spaceAbove>60):(spaceBelow<120&&spaceAbove>spaceBelow);
   if(showAbove){
     const h=Math.max(56,Math.min(spaceAbove,maxH));
-    prodDD.style.top=Math.max(vTop+8,r.top-h-4)+'px';
+    prodDD.style.top=(r.top+vTop-h-4)+'px';
     prodDD.style.bottom='';
     prodDD.style.maxHeight=h+'px';
   } else {
-    prodDD.style.top=(r.bottom+4)+'px';
+    prodDD.style.top=(r.bottom+vTop+4)+'px';
     prodDD.style.bottom='';
     prodDD.style.maxHeight=Math.max(96,Math.min(spaceBelow,maxH))+'px';
   }

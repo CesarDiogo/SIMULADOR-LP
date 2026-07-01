@@ -399,15 +399,18 @@ function computeV(g){
 }
 
 function calc(g,row){
-  if(!row.produto||!row.fat||!row.exp||!row.emb) return {err:'Preencha Produto, Fat, Exp e Embalagem'};
+  const precoAvulso=parseFloat(row.precoLista)||0;
+  const isAvulso=row.avulso && precoAvulso>0;
+  if(!row.fat||!row.exp||!row.emb) return {err:'Preencha Fat, Exp e Embalagem'};
+  if(!isAvulso && !row.produto) return {err:'Preencha o Produto'};
   const key=[g.periodo,row.fat,row.exp,row.produto,row.emb,g.moeda].join('-');
-  const p=PR[key];
-  if(!p) return {err:'Combinação sem preço na base', key};
-  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
+  const p=row.produto?PR[key]:null;
+  if(!isAvulso && !p) return {err:'Combinação sem preço na base', key};
+  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p||[0,0,0,0,0,0,0];
   const I3=parseFloat(g.dolar)||1;
   const L=resolveFrete(g,row).value;
   const _vendaRaw=parseFloat(row.venda)||0; const M=(row.vendaMoeda==='BRL'&&_vendaRaw)?_vendaRaw/I3:_vendaRaw;
-  const B=(parseFloat(row.precoLista)>0)?parseFloat(row.precoLista):(Y_pr||0); // Preço de Lista (avulso sobrepõe base)
+  const B=isAvulso?precoAvulso:(Y_pr||0); // Preço de Lista (avulso sobrepõe base)
   const C=X_pr||0;                 // ICMS emb %
   const D=B*C;                     // ICMS emb usd
   const E=AE_pr||0;                // PIS/COFINS emb
@@ -439,10 +442,13 @@ const p_E2=g=>PER[g.periodo].E2, p_D2=g=>PER[g.periodo].D2, p_G2=g=>PER[g.period
 
 // inverso: dada uma meta de margem (AE e/ou AI) ou de desconto (AA), resolve o Preço de Venda (M)
 function solvePrice(g,row,tAE,tAI,tAA){
-  if(!row.produto||!row.fat||!row.exp||!row.emb) return {err:'Preencha Produto, Fat, Exp e Embalagem'};
+  const precoAvulso=parseFloat(row.precoLista)||0;
+  const isAvulso=row.avulso && precoAvulso>0;
+  if(!row.fat||!row.exp||!row.emb) return {err:'Preencha Fat, Exp e Embalagem'};
+  if(!isAvulso && !row.produto) return {err:'Preencha o Produto'};
   const key=[g.periodo,row.fat,row.exp,row.produto,row.emb,g.moeda].join('-');
-  const p=PR[key]; if(!p) return {err:'Combinação sem preço na base',key};
-  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
+  const p=row.produto?PR[key]:null; if(!isAvulso && !p) return {err:'Combinação sem preço na base',key};
+  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p||[0,0,0,0,0,0,0];
   const I3=parseFloat(g.dolar)||1, L=resolveFrete(g,row).value;
   const ufFat=FUF[row.fat]||'', ufExp=row.ufExp||ufFat;
   const R=IC[ufFat+ufExp+String(PER[g.periodo].T)]!==undefined?IC[ufFat+ufExp+String(PER[g.periodo].T)]:0;
@@ -450,8 +456,8 @@ function solvePrice(g,row,tAE,tAI,tAA){
   const probe=calc(g,{...row,venda:'1'}); const W=probe.W; // juros independe de M
   const k_x=W/(1+W);
   const k_u=(AD_pr>0)?(0.00925/(1-0.00925)):0;
-  const AC=O_pr+Q_pr-20, AD=O_pr;
-  const B=(parseFloat(row.precoLista)>0)?parseFloat(row.precoLista):(Y_pr||0), C=X_pr||0, D=B*C, E=AE_pr||0;   // fixos (não dependem do preço)
+  const AC=isAvulso?null:(O_pr+Q_pr-20), AD=isAvulso?null:O_pr;
+  const B=isAvulso?precoAvulso:(Y_pr||0), C=X_pr||0, D=B*C, E=isAvulso?0:(AE_pr||0);   // fixos (não dependem do preço)
   function priceFor(type,val){
     let T, den;
     if(type==='AE'){den=(1-k_u-k_x-O); T=(val+AC)/den;}
@@ -475,7 +481,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v41';
+const APP_VER='v42';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}

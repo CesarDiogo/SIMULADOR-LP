@@ -51,10 +51,12 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .glabel::before{content:"";width:6px;height:6px;background:var(--acc);border-radius:50%;box-shadow:0 0 8px var(--acc)}
 .gfields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
 .gfields .field{min-width:0}
-.gfields .field input[type="date"]{width:100%;min-width:0;box-sizing:border-box}
+.gfields .field input[type="date"]{width:100%;min-width:0;max-width:100%;box-sizing:border-box;overflow:hidden}
 @media(max-width:640px){
+  .gfields{grid-template-columns:1fr 1fr;overflow:hidden}
   .gfields .field-date{grid-column:1/-1}
 }
+.avulso-btn{margin-left:auto}
 .period-ref{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 20px}
 .period-ref b{color:var(--ink);font-weight:600}
 .period-ref .warn{color:var(--warn)}
@@ -473,7 +475,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v39';
+const APP_VER='v40';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -501,8 +503,8 @@ function rowCard(r){
         <button class="ms ${(!r.mode||r.mode==='preco')?'on':''}" data-mode="preco" data-mid="${r.id}">Por Preço</button>
         <button class="ms ${r.mode==='meta'?'on':''}" data-mode="meta" data-mid="${r.id}">Por Margem</button>
         <button class="ms ${r.mode==='desc'?'on':''}" data-mode="desc" data-mid="${r.id}">Por Desconto</button>
-        <button class="ms ${r.avulso?'on':''}" data-avulso="${r.id}" title="Usar preço de lista avulso">Avulso</button>
       </div>
+      <button class="ms avulso-btn ${r.avulso?'on':''}" data-avulso="${r.id}" title="Usar preço de lista avulso">Avulso</button>
       <button class="rm" data-rm="${r.id}" title="Remover">✕</button>
     </div>
     <div class="card-inputs">

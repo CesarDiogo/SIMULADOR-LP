@@ -50,6 +50,8 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .glabel{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .glabel::before{content:"";width:6px;height:6px;background:var(--acc);border-radius:50%;box-shadow:0 0 8px var(--acc)}
 .gfields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.gfields .field{min-width:0}
+.gfields .field input[type="date"]{width:100%;min-width:0;box-sizing:border-box}
 .period-ref{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 20px}
 .period-ref b{color:var(--ink);font-weight:600}
 .period-ref .warn{color:var(--warn)}

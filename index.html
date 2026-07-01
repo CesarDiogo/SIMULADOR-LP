@@ -893,7 +893,10 @@ rowsEl.addEventListener('focusin',e=>{
 });
 rowsEl.addEventListener('input',e=>{
   if(e.target.dataset && e.target.dataset.f==='produto'){
-    buildProdDDContent(e.target); // só atualiza conteúdo — nunca fecha/reabre ao digitar
+    buildProdDDContent(e.target);
+    // se ao digitar o dropdown ainda não abriu (callback de teclado não disparou), abre agora
+    // neste ponto o teclado já está aberto, então openProdDD mostra imediatamente
+    if(!prodDD.classList.contains('open')) openProdDD(e.target);
   }
 });
 prodDD.addEventListener('mousedown',e=>{ const opt=e.target.closest('.opt'); if(!opt||!activeProdInput) return; e.preventDefault(); const inp=activeProdInput; inp.value=opt.dataset.val; inp.dispatchEvent(new Event('input',{bubbles:true})); hideProdDD(); });

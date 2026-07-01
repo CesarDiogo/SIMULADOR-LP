@@ -456,8 +456,9 @@ function solvePrice(g,row,tAE,tAI,tAA){
   const probe=calc(g,{...row,venda:'1'}); const W=probe.W; // juros independe de M
   const k_x=W/(1+W);
   const k_u=(AD_pr>0)?(0.00925/(1-0.00925)):0;
-  const AC=isAvulso?null:(O_pr+Q_pr-20), AD=isAvulso?null:O_pr;
-  const B=isAvulso?precoAvulso:(Y_pr||0), C=X_pr||0, D=B*C, E=isAvulso?0:(AE_pr||0);   // fixos (não dependem do preço)
+  const noBase=isAvulso&&!p;
+  const AC=noBase?null:(O_pr+Q_pr-20), AD=noBase?null:O_pr;
+  const B=isAvulso?precoAvulso:(Y_pr||0), C=X_pr||0, D=B*C, E=noBase?0:(AE_pr||0);   // fixos (não dependem do preço)
   function priceFor(type,val){
     let T, den;
     if(type==='AE'){den=(1-k_u-k_x-O); T=(val+AC)/den;}
@@ -481,7 +482,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v42';
+const APP_VER='v43';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}

@@ -857,13 +857,26 @@ function buildProdDDContent(input){
   if(shown.length===0){ prodDD.innerHTML='<div class="ddinfo">nenhum produto encontrado</div>'; }
   else { prodDD.innerHTML=shown.map(p=>'<div class="opt" data-val="'+p.replace(/"/g,'&quot;')+'">'+p+'</div>').join('')+(matches.length>cap?('<div class="ddinfo">+'+(matches.length-cap)+' mais… refine a busca</div>'):''); }
 }
-function showProdDD(input){
+function showProdDD(input, contentOnly){
   activeProdInput=input;
   buildProdDDContent(input);
-  if(window.innerWidth<=640){
-    // No mobile: aguarda teclado abrir antes de mostrar, para posicionar corretamente
-    prodDD.classList.remove('open');
-    setTimeout(()=>{ if(activeProdInput===input){ positionProdDD(input); prodDD.classList.add('open'); } },400);
+  if(contentOnly) return; // digitando: só atualiza conteúdo, não reposiciona
+  const vv=window.visualViewport;
+  const isMobile=window.innerWidth<=640;
+  if(isMobile && vv){
+    // Teclado já aberto se visual viewport < 75% da tela
+    const kbOpen=vv.height < window.screen.height*0.75;
+    if(kbOpen){
+      positionProdDD(input); prodDD.classList.add('open');
+    } else {
+      // Aguarda o evento resize do visualViewport (dispara quando teclado termina de abrir)
+      prodDD.classList.remove('open');
+      let done=false;
+      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; positionProdDD(input); prodDD.classList.add('open'); } };
+      const onResize=()=>{ vv.removeEventListener('resize',onResize); clearTimeout(fb); finish(); };
+      const fb=setTimeout(()=>{ vv.removeEventListener('resize',onResize); finish(); },700);
+      vv.addEventListener('resize',onResize);
+    }
   } else {
     positionProdDD(input); prodDD.classList.add('open');
   }
@@ -871,12 +884,12 @@ function showProdDD(input){
 function hideProdDD(){ prodDD.classList.remove('open'); activeProdInput=null; }
 const rowsEl=document.getElementById('rows');
 rowsEl.addEventListener('focusin',e=>{ if(e.target.dataset && e.target.dataset.f==='produto') showProdDD(e.target); });
-rowsEl.addEventListener('input',e=>{ if(e.target.dataset && e.target.dataset.f==='produto') showProdDD(e.target); });
+rowsEl.addEventListener('input',e=>{ if(e.target.dataset && e.target.dataset.f==='produto') showProdDD(e.target, prodDD.classList.contains('open')); });
 prodDD.addEventListener('mousedown',e=>{ const opt=e.target.closest('.opt'); if(!opt||!activeProdInput) return; e.preventDefault(); const inp=activeProdInput; inp.value=opt.dataset.val; inp.dispatchEvent(new Event('input',{bubbles:true})); hideProdDD(); });
 document.addEventListener('click',e=>{ if(prodDD.contains(e.target)) return; if(e.target.dataset && e.target.dataset.f==='produto') return; hideProdDD(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') hideProdDD(); });
 window.addEventListener('scroll',()=>{ if(activeProdInput){ if(document.body.contains(activeProdInput)) positionProdDD(activeProdInput); else hideProdDD(); } }, true);
-if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{ if(activeProdInput) positionProdDD(activeProdInput); }); }
+if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{ if(activeProdInput&&prodDD.classList.contains('open')) positionProdDD(activeProdInput); }); }
 
 // init
 const saved=loadSavedBase();

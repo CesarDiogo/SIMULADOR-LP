@@ -66,7 +66,7 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .inp-clear input{padding-right:34px;width:100%}
 .clear-x{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;background:var(--line);color:var(--ink);border-radius:6px;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .clear-x:hover{background:var(--neg);color:#0b1110}
-.prod-dd{position:fixed;z-index:60;background:var(--panel2);border:1px solid var(--acc);border-radius:9px;max-height:46vh;overflow-y:auto;display:none;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.prod-dd{position:absolute;z-index:60;background:var(--panel2);border:1px solid var(--acc);border-radius:9px;max-height:46vh;overflow-y:auto;display:none;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .prod-dd.open{display:block}
 .prod-dd .opt{padding:11px 13px;font-family:var(--mono);font-size:15px;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line)}
 .prod-dd .opt:active,.prod-dd .opt:hover{background:var(--acc);color:#0b1110}
@@ -832,21 +832,23 @@ function positionProdDD(input){
   const r=input.getBoundingClientRect();
   const vv=window.visualViewport;
   const vH=vv?vv.height:window.innerHeight;
+  // Coordenadas absolutas no documento: scroll + posição no viewport
+  const sY=window.scrollY||0;
+  const sX=window.scrollX||0;
   const spaceAbove=r.top-8;
   const spaceBelow=vH-r.bottom-8;
   const maxH=Math.round(vH*0.46);
   const isMobile=window.innerWidth<=640;
-  prodDD.style.left=r.left+'px';
+  prodDD.style.left=(sX+r.left)+'px';
   prodDD.style.width=Math.max(r.width,240)+'px';
   const showAbove=isMobile?(spaceAbove>60):(spaceBelow<120&&spaceAbove>spaceBelow);
   if(showAbove){
     const h=Math.max(56,Math.min(spaceAbove,maxH));
-    // Usa bottom (distância do fundo do viewport) — estável com teclado iOS e scroll
-    prodDD.style.top='';
-    prodDD.style.bottom=(vH-r.top+4)+'px';
+    prodDD.style.bottom='';
+    prodDD.style.top=(sY+r.top-h-4)+'px';
     prodDD.style.maxHeight=h+'px';
   } else {
-    prodDD.style.top=(r.bottom+4)+'px';
+    prodDD.style.top=(sY+r.bottom+4)+'px';
     prodDD.style.bottom='';
     prodDD.style.maxHeight=Math.max(96,Math.min(spaceBelow,maxH))+'px';
   }
@@ -892,7 +894,7 @@ rowsEl.addEventListener('input',e=>{
 prodDD.addEventListener('mousedown',e=>{ const opt=e.target.closest('.opt'); if(!opt||!activeProdInput) return; e.preventDefault(); const inp=activeProdInput; inp.value=opt.dataset.val; inp.dispatchEvent(new Event('input',{bubbles:true})); hideProdDD(); });
 document.addEventListener('click',e=>{ if(prodDD.contains(e.target)) return; if(e.target.dataset && e.target.dataset.f==='produto') return; hideProdDD(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') hideProdDD(); });
-window.addEventListener('scroll',()=>{ if(activeProdInput&&prodDD.classList.contains('open')){ if(document.body.contains(activeProdInput)) positionProdDD(activeProdInput); else hideProdDD(); } },true);
+window.addEventListener('scroll',()=>{ if(activeProdInput&&!document.body.contains(activeProdInput)) hideProdDD(); },true);
 if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{ if(activeProdInput&&prodDD.classList.contains('open')) positionProdDD(activeProdInput); }); }
 
 // init

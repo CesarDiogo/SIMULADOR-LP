@@ -831,9 +831,6 @@ function snorm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f
 function positionProdDD(input){
   const r=input.getBoundingClientRect();
   const vv=window.visualViewport;
-  // vTop: offset do visual viewport em relação ao layout viewport (>0 quando teclado iOS abre)
-  // position:fixed usa layout viewport, getBoundingClientRect usa visual viewport
-  const vTop=vv?vv.offsetTop:0;
   const vH=vv?vv.height:window.innerHeight;
   const spaceAbove=r.top-8;
   const spaceBelow=vH-r.bottom-8;
@@ -844,25 +841,32 @@ function positionProdDD(input){
   const showAbove=isMobile?(spaceAbove>60):(spaceBelow<120&&spaceAbove>spaceBelow);
   if(showAbove){
     const h=Math.max(56,Math.min(spaceAbove,maxH));
-    prodDD.style.top=(r.top+vTop-h-4)+'px';
+    prodDD.style.top=(r.top-h-4)+'px';
     prodDD.style.bottom='';
     prodDD.style.maxHeight=h+'px';
   } else {
-    prodDD.style.top=(r.bottom+vTop+4)+'px';
+    prodDD.style.top=(r.bottom+4)+'px';
     prodDD.style.bottom='';
     prodDD.style.maxHeight=Math.max(96,Math.min(spaceBelow,maxH))+'px';
   }
 }
-function showProdDD(input){
-  activeProdInput=input;
+function buildProdDDContent(input){
   const toks=snorm(input.value).trim().split(/\s+/).filter(Boolean);
   const matches=DD.produto.filter(p=>{ const n=snorm(p); return toks.every(t=>n.includes(t)); });
   const cap=400, shown=matches.slice(0,cap);
   if(shown.length===0){ prodDD.innerHTML='<div class="ddinfo">nenhum produto encontrado</div>'; }
   else { prodDD.innerHTML=shown.map(p=>'<div class="opt" data-val="'+p.replace(/"/g,'&quot;')+'">'+p+'</div>').join('')+(matches.length>cap?('<div class="ddinfo">+'+(matches.length-cap)+' mais… refine a busca</div>'):''); }
-  positionProdDD(input); prodDD.classList.add('open');
-  // re-posiciona após teclado iOS abrir (~350ms)
-  if(window.innerWidth<=640){ setTimeout(()=>{ if(activeProdInput===input) positionProdDD(input); },380); }
+}
+function showProdDD(input){
+  activeProdInput=input;
+  buildProdDDContent(input);
+  if(window.innerWidth<=640){
+    // No mobile: aguarda teclado abrir antes de mostrar, para posicionar corretamente
+    prodDD.classList.remove('open');
+    setTimeout(()=>{ if(activeProdInput===input){ positionProdDD(input); prodDD.classList.add('open'); } },400);
+  } else {
+    positionProdDD(input); prodDD.classList.add('open');
+  }
 }
 function hideProdDD(){ prodDD.classList.remove('open'); activeProdInput=null; }
 const rowsEl=document.getElementById('rows');

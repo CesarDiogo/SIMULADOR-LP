@@ -131,7 +131,8 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .dcell .dn{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
 .dcell .dv{font-family:var(--mono);font-size:13px;color:var(--ink);margin-top:2px}
 
-.toolbar{display:flex;gap:12px;margin:22px 0 6px;flex-wrap:wrap}
+.toolbar{display:flex;gap:12px;margin:22px 0 6px;flex-wrap:wrap;align-items:center}
+.app-ver{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.06em}
 .btn{font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;padding:11px 18px;border-radius:9px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);transition:.15s}
 .btn:hover{border-color:var(--acc);color:var(--acc)}
 .btn.primary{background:var(--acc);color:#0b1110;border-color:var(--acc)}
@@ -231,6 +232,7 @@ datalist{display:none}
     <button class="btn primary" id="add">+ Adicionar Produto</button>
     <button class="btn" id="msg">Gerar mensagem (WhatsApp)</button>
     <button class="btn" id="clear">Limpar Tudo</button>
+    <span class="app-ver" id="app_ver"></span>
   </div>
   <button class="fab" id="fab_add" title="Adicionar Produto">+</button>
 
@@ -471,6 +473,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
+const APP_VER='v39';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -498,6 +501,7 @@ function rowCard(r){
         <button class="ms ${(!r.mode||r.mode==='preco')?'on':''}" data-mode="preco" data-mid="${r.id}">Por Preço</button>
         <button class="ms ${r.mode==='meta'?'on':''}" data-mode="meta" data-mid="${r.id}">Por Margem</button>
         <button class="ms ${r.mode==='desc'?'on':''}" data-mode="desc" data-mid="${r.id}">Por Desconto</button>
+        <button class="ms ${r.avulso?'on':''}" data-avulso="${r.id}" title="Usar preço de lista avulso">Avulso</button>
       </div>
       <button class="rm" data-rm="${r.id}" title="Remover">✕</button>
     </div>
@@ -510,7 +514,7 @@ function rowCard(r){
       <div class="field"><label>Embalagem</label><select data-f="emb">${opt(DD.emb,r.emb)}</select></div>
       <div class="field"><label>Lista REP?</label><select data-f="listaRep">${opt(DD.listaRep,r.listaRep)}</select></div>
       <div class="field"><label>Frete manual <span style="color:var(--faint)">(${FB?'sobrepõe tabela':'opc'})</span></label><input type="number" step="0.01" data-f="frete" value="${r.frete||''}" placeholder="${FB?'auto (tabela)':'0'}"></div>
-      <div class="field"><label>Lista avulso <span style="color:var(--faint)">(US$ opc)</span></label><input type="number" step="0.01" data-f="precoLista" value="${r.precoLista||''}" placeholder="ex: 25.50"></div>
+      ${r.avulso?`<div class="field"><label>Lista avulso <span style="color:var(--faint)">(US$)</span></label><input type="number" step="0.01" data-f="precoLista" value="${r.precoLista||''}" placeholder="ex: 25.50"></div>`:''}
       ${r.mode==='meta'
         ? `<div class="field meta-f"><label>Meta Margem Presumida</label><input type="number" step="0.01" data-f="tgtAE" value="${r.tgtAE||''}" placeholder="opcional"></div>
            <div class="field meta-f"><label>Meta Margem P&L</label><input type="number" step="0.01" data-f="tgtAI" value="${r.tgtAI||''}" placeholder="opcional"></div>`
@@ -621,7 +625,7 @@ function renderAll(){
 
 function addRow(){
   uid++;
-  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD',precoLista:''});
+  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD',precoLista:'',avulso:false});
   renderAll();
 }
 
@@ -649,6 +653,7 @@ document.getElementById('rows').addEventListener('click',e=>{
     renderResult(r); return;
   }
   if(e.target.dataset.vmoed){const id=+e.target.dataset.vid;const r=rows.find(x=>x.id===id);if(r){r.vendaMoeda=e.target.dataset.vmoed;renderAll();}return;}
+  if(e.target.dataset.avulso){const id=+e.target.dataset.avulso;const r=rows.find(x=>x.id===id);if(r){r.avulso=!r.avulso;if(!r.avulso)r.precoLista='';renderAll();}return;}
   if(e.target.dataset.rm){const id=+e.target.dataset.rm;rows=rows.filter(x=>x.id!==id);rows.forEach((r,i)=>r.n=i+1);renderAll();}
   if(e.target.dataset.det||e.target.closest('[data-det]')){
     const btn=e.target.closest('[data-det]'); const id=btn.dataset.det;
@@ -912,6 +917,7 @@ refreshGlobals();
 setBaseInfo(saved?saved.when:null);
 setFreightInfo();
 addRow();
+document.getElementById('app_ver').textContent=APP_VER;
 
 // carrega frete salvo (IndexedDB) de forma assíncrona
 (async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; refreshFreightMonth(); setFreightInfo(); renderAll(); } }catch(e){} })();

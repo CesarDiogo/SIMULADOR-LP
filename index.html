@@ -56,7 +56,6 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
   .gfields{grid-template-columns:1fr 1fr;overflow:hidden}
   .gfields .field-date{grid-column:1/-1}
 }
-.avulso-btn{margin-left:auto}
 .period-ref{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 20px}
 .period-ref b{color:var(--ink);font-weight:600}
 .period-ref .warn{color:var(--warn)}
@@ -399,18 +398,15 @@ function computeV(g){
 }
 
 function calc(g,row){
-  const precoAvulso=parseFloat(row.precoLista)||0;
-  const isAvulso=row.avulso && precoAvulso>0;
-  if(!row.fat||!row.exp||!row.emb) return {err:'Preencha Fat, Exp e Embalagem'};
-  if(!isAvulso && !row.produto) return {err:'Preencha o Produto'};
+  if(!row.produto||!row.fat||!row.exp||!row.emb) return {err:'Preencha Produto, Fat, Exp e Embalagem'};
   const key=[g.periodo,row.fat,row.exp,row.produto,row.emb,g.moeda].join('-');
-  const p=row.produto?PR[key]:null;
-  if(!isAvulso && !p) return {err:'Combinação sem preço na base', key};
-  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p||[0,0,0,0,0,0,0];
+  const p=PR[key];
+  if(!p) return {err:'Combinação sem preço na base', key};
+  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
   const I3=parseFloat(g.dolar)||1;
   const L=resolveFrete(g,row).value;
   const _vendaRaw=parseFloat(row.venda)||0; const M=(row.vendaMoeda==='BRL'&&_vendaRaw)?_vendaRaw/I3:_vendaRaw;
-  const B=isAvulso?precoAvulso:(Y_pr||0); // Preço de Lista (avulso sobrepõe base)
+  const B=Y_pr||0;
   const C=X_pr||0;                 // ICMS emb %
   const D=B*C;                     // ICMS emb usd
   const E=AE_pr||0;                // PIS/COFINS emb
@@ -442,13 +438,10 @@ const p_E2=g=>PER[g.periodo].E2, p_D2=g=>PER[g.periodo].D2, p_G2=g=>PER[g.period
 
 // inverso: dada uma meta de margem (AE e/ou AI) ou de desconto (AA), resolve o Preço de Venda (M)
 function solvePrice(g,row,tAE,tAI,tAA){
-  const precoAvulso=parseFloat(row.precoLista)||0;
-  const isAvulso=row.avulso && precoAvulso>0;
-  if(!row.fat||!row.exp||!row.emb) return {err:'Preencha Fat, Exp e Embalagem'};
-  if(!isAvulso && !row.produto) return {err:'Preencha o Produto'};
+  if(!row.produto||!row.fat||!row.exp||!row.emb) return {err:'Preencha Produto, Fat, Exp e Embalagem'};
   const key=[g.periodo,row.fat,row.exp,row.produto,row.emb,g.moeda].join('-');
-  const p=row.produto?PR[key]:null; if(!isAvulso && !p) return {err:'Combinação sem preço na base',key};
-  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p||[0,0,0,0,0,0,0];
+  const p=PR[key]; if(!p) return {err:'Combinação sem preço na base',key};
+  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
   const I3=parseFloat(g.dolar)||1, L=resolveFrete(g,row).value;
   const ufFat=FUF[row.fat]||'', ufExp=row.ufExp||ufFat;
   const R=IC[ufFat+ufExp+String(PER[g.periodo].T)]!==undefined?IC[ufFat+ufExp+String(PER[g.periodo].T)]:0;
@@ -456,9 +449,8 @@ function solvePrice(g,row,tAE,tAI,tAA){
   const probe=calc(g,{...row,venda:'1'}); const W=probe.W; // juros independe de M
   const k_x=W/(1+W);
   const k_u=(AD_pr>0)?(0.00925/(1-0.00925)):0;
-  const noBase=isAvulso&&!p;
-  const AC=noBase?null:(O_pr+Q_pr-20), AD=noBase?null:O_pr;
-  const B=isAvulso?precoAvulso:(Y_pr||0), C=X_pr||0, D=B*C, E=noBase?0:(AE_pr||0);   // fixos (não dependem do preço)
+  const AC=O_pr+Q_pr-20, AD=O_pr;
+  const B=Y_pr||0, C=X_pr||0, D=B*C, E=AE_pr||0;   // fixos (não dependem do preço)
   function priceFor(type,val){
     let T, den;
     if(type==='AE'){den=(1-k_u-k_x-O); T=(val+AC)/den;}
@@ -482,7 +474,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v43';
+const APP_VER='v44';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -511,7 +503,7 @@ function rowCard(r){
         <button class="ms ${r.mode==='meta'?'on':''}" data-mode="meta" data-mid="${r.id}">Por Margem</button>
         <button class="ms ${r.mode==='desc'?'on':''}" data-mode="desc" data-mid="${r.id}">Por Desconto</button>
       </div>
-      <button class="ms avulso-btn ${r.avulso?'on':''}" data-avulso="${r.id}" title="Usar preço de lista avulso">Avulso</button>
+
       <button class="rm" data-rm="${r.id}" title="Remover">✕</button>
     </div>
     <div class="card-inputs">
@@ -523,7 +515,6 @@ function rowCard(r){
       <div class="field"><label>Embalagem</label><select data-f="emb">${opt(DD.emb,r.emb)}</select></div>
       <div class="field"><label>Lista REP?</label><select data-f="listaRep">${opt(DD.listaRep,r.listaRep)}</select></div>
       <div class="field"><label>Frete manual <span style="color:var(--faint)">(${FB?'sobrepõe tabela':'opc'})</span></label><input type="number" step="0.01" data-f="frete" value="${r.frete||''}" placeholder="${FB?'auto (tabela)':'0'}"></div>
-      ${r.avulso?`<div class="field"><label>Lista avulso <span style="color:var(--faint)">(US$)</span></label><input type="number" step="0.01" data-f="precoLista" value="${r.precoLista||''}" placeholder="ex: 25.50"></div>`:''}
       ${r.mode==='meta'
         ? `<div class="field meta-f"><label>Meta Margem Presumida</label><input type="number" step="0.01" data-f="tgtAE" value="${r.tgtAE||''}" placeholder="opcional"></div>
            <div class="field meta-f"><label>Meta Margem P&L</label><input type="number" step="0.01" data-f="tgtAI" value="${r.tgtAI||''}" placeholder="opcional"></div>`
@@ -634,7 +625,7 @@ function renderAll(){
 
 function addRow(){
   uid++;
-  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD',precoLista:'',avulso:false});
+  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD'});
   renderAll();
 }
 
@@ -662,7 +653,6 @@ document.getElementById('rows').addEventListener('click',e=>{
     renderResult(r); return;
   }
   if(e.target.dataset.vmoed){const id=+e.target.dataset.vid;const r=rows.find(x=>x.id===id);if(r){r.vendaMoeda=e.target.dataset.vmoed;renderAll();}return;}
-  if(e.target.dataset.avulso){const id=+e.target.dataset.avulso;const r=rows.find(x=>x.id===id);if(r){r.avulso=!r.avulso;if(!r.avulso)r.precoLista='';renderAll();}return;}
   if(e.target.dataset.rm){const id=+e.target.dataset.rm;rows=rows.filter(x=>x.id!==id);rows.forEach((r,i)=>r.n=i+1);renderAll();}
   if(e.target.dataset.det||e.target.closest('[data-det]')){
     const btn=e.target.closest('[data-det]'); const id=btn.dataset.det;

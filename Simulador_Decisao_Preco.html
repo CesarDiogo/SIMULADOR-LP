@@ -51,7 +51,9 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .glabel::before{content:"";width:6px;height:6px;background:var(--acc);border-radius:50%;box-shadow:0 0 8px var(--acc)}
 .gfields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
 .gfields .field{min-width:0}
-.gfields .field input[type="date"]{width:100%;min-width:0;max-width:100%;box-sizing:border-box;overflow:hidden}
+.date-wrap{display:flex;gap:4px;align-items:center}
+.date-wrap input{flex:1;min-width:0}
+.date-wrap button{flex:none;background:none;border:1px solid var(--line);border-radius:6px;padding:0 6px;height:32px;cursor:pointer;font-size:15px;line-height:1}
 @media(max-width:640px){
   .gfields{grid-template-columns:1fr 1fr;overflow:hidden}
   .gfields .field-date{grid-column:1/-1}
@@ -220,7 +222,7 @@ datalist{display:none}
       <div class="field"><label>Lista de preço</label><select id="g_moeda"></select></div>
       <div class="field"><label>Dólar (R$)</label><input id="g_dolar" type="number" step="0.0001" value="5.1"></div>
       <div class="field"><label>Tipo Pgto</label><select id="g_tipo"></select></div>
-      <div class="field field-date"><label>Validade / Data Pgto</label><input id="g_validade" type="date"></div>
+      <div class="field field-date"><label>Validade / Data Pgto</label><div class="date-wrap"><input id="g_validade" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" autocomplete="off"><button type="button" id="g_validade_btn" title="Escolher data">📅</button><input id="g_validade_picker" type="date" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0"></div></div>
       <div class="field" id="ddf_wrap" style="display:none"><label>Qtd DDF</label><select id="g_ddf"></select></div>
       <div class="field" id="fmonth_wrap" style="display:none"><label>Mês do frete</label><select id="g_freightMonth"></select></div>
     </div>
@@ -474,12 +476,33 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v44';
+const APP_VER='v45';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
 
 function fillSelect(id,arr,def){const el=document.getElementById(id);el.innerHTML=arr.map(v=>`<option>${v}</option>`).join('');if(def)el.value=def;}
+
+function isoToBR(iso){
+  if(!iso) return '';
+  const m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso);
+}
+function brToISO(br){
+  if(!br) return '';
+  const s=String(br).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(!m) return '';
+  const d=Number(m[1]), mo=Number(m[2]), y=Number(m[3]);
+  const dt=new Date(y,mo-1,d);
+  if(dt.getFullYear()!==y || dt.getMonth()!==mo-1 || dt.getDate()!==d) return '';
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+function maskDateBR(value){
+  const d=String(value||'').replace(/\D/g,'').slice(0,8);
+  return d.replace(/^(\d{2})(\d)/,'$1/$2').replace(/^(\d{2})\/(\d{2})(\d)/,'$1/$2/$3');
+}
 
 function getGlobals(){
   return {
@@ -487,7 +510,7 @@ function getGlobals(){
     moeda:document.getElementById('g_moeda').value,
     dolar:document.getElementById('g_dolar').value,
     tipo:document.getElementById('g_tipo').value,
-    validade:document.getElementById('g_validade').value,
+    validade:brToISO(document.getElementById('g_validade').value),
     ddf:document.getElementById('g_ddf').value,
     freightMonth:(document.getElementById('g_freightMonth')||{}).value||'',
   };
@@ -661,7 +684,33 @@ document.getElementById('rows').addEventListener('click',e=>{
   }
 });
 ['g_periodo','g_moeda','g_dolar','g_tipo','g_validade','g_ddf','g_freightMonth'].forEach(id=>{
-  document.addEventListener('input',e=>{if(e.target.id===id){toggleDDF();updatePeriodRef();rows.forEach(renderResult);}});
+  document.addEventListener('input',e=>{
+    if(e.target.id===id){
+      if(id==='g_validade') e.target.value=maskDateBR(e.target.value);
+      toggleDDF();updatePeriodRef();rows.forEach(renderResult);
+    }
+  });
+});
+document.getElementById('g_validade').addEventListener('input',e=>{
+  let v=e.target.value.replace(/\D/g,'');
+  if(v.length>2) v=v.slice(0,2)+'/'+v.slice(2);
+  if(v.length>5) v=v.slice(0,5)+'/'+v.slice(5,9);
+  e.target.value=v;
+});
+document.getElementById('g_validade').addEventListener('blur',e=>{
+  e.target.value=maskDateBR(e.target.value);
+  toggleDDF();updatePeriodRef();rows.forEach(renderResult);
+});
+document.getElementById('g_validade_btn').addEventListener('click',()=>{
+  const picker=document.getElementById('g_validade_picker');
+  const iso=brToISO(document.getElementById('g_validade').value);
+  if(iso) picker.value=iso;
+  picker.showPicker();
+});
+document.getElementById('g_validade_picker').addEventListener('change',e=>{
+  const iso=e.target.value;
+  if(iso){const[y,mo,d]=iso.split('-');document.getElementById('g_validade').value=`${d}/${mo}/${y}`;}
+  toggleDDF();updatePeriodRef();rows.forEach(renderResult);
 });
 function toggleDDF(){document.getElementById('ddf_wrap').style.display=document.getElementById('g_tipo').value==='DDF'?'flex':'none';}
 document.getElementById('add').addEventListener('click',addRow);
@@ -673,7 +722,7 @@ document.getElementById('glob_toggle').addEventListener('click',function(){
 document.getElementById('clear').addEventListener('click',()=>{rows=[];renderAll();});
 
 // ---- Mensagem para WhatsApp ----
-function fmtDateBR(iso){ if(!iso) return '—'; const p=String(iso).split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : iso; }
+function fmtDateBR(iso){ return iso ? isoToBR(iso) : '—'; }
 function rowQuote(g,r){
   if(!r.produto||!r.fat||!r.exp||!r.emb) return null;
   let price;

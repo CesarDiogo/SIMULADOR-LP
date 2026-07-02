@@ -52,8 +52,9 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .gfields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
 .gfields .field{min-width:0}
 .date-wrap{display:flex;gap:4px;align-items:center}
-.date-wrap input{flex:1;min-width:0}
-.date-wrap button{flex:none;background:none;border:1px solid var(--line);border-radius:6px;padding:0 6px;height:32px;cursor:pointer;font-size:15px;line-height:1}
+.date-wrap>input{flex:1;min-width:0}
+.cal-btn-wrap{position:relative;flex:none;display:flex;align-items:center;justify-content:center;background:none;border:1px solid var(--line);border-radius:6px;padding:0 6px;height:32px;font-size:15px;cursor:pointer;user-select:none}
+.cal-overlay{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:none;padding:0;margin:0}
 @media(max-width:640px){
   .gfields{grid-template-columns:1fr 1fr;overflow:hidden}
   .gfields .field-date{grid-column:1/-1}
@@ -222,7 +223,7 @@ datalist{display:none}
       <div class="field"><label>Lista de preço</label><select id="g_moeda"></select></div>
       <div class="field"><label>Dólar (R$)</label><input id="g_dolar" type="number" step="0.0001" value="5.1"></div>
       <div class="field"><label>Tipo Pgto</label><select id="g_tipo"></select></div>
-      <div class="field field-date"><label>Validade / Data Pgto</label><div class="date-wrap"><input id="g_validade" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" autocomplete="off"><button type="button" id="g_validade_btn" title="Escolher data">📅</button><input id="g_validade_picker" type="date" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0"></div></div>
+      <div class="field field-date"><label>Validade / Data Pgto</label><div class="date-wrap"><input id="g_validade" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" autocomplete="off"><div class="cal-btn-wrap" title="Escolher data">📅<input id="g_validade_picker" type="date" class="cal-overlay"></div></div></div>
       <div class="field" id="ddf_wrap" style="display:none"><label>Qtd DDF</label><select id="g_ddf"></select></div>
       <div class="field" id="fmonth_wrap" style="display:none"><label>Mês do frete</label><select id="g_freightMonth"></select></div>
     </div>
@@ -476,7 +477,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v45';
+const APP_VER='v46';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -701,11 +702,9 @@ document.getElementById('g_validade').addEventListener('blur',e=>{
   e.target.value=maskDateBR(e.target.value);
   toggleDDF();updatePeriodRef();rows.forEach(renderResult);
 });
-document.getElementById('g_validade_btn').addEventListener('click',()=>{
-  const picker=document.getElementById('g_validade_picker');
+document.getElementById('g_validade_picker').addEventListener('focus',()=>{
   const iso=brToISO(document.getElementById('g_validade').value);
-  if(iso) picker.value=iso;
-  picker.showPicker();
+  if(iso) document.getElementById('g_validade_picker').value=iso;
 });
 document.getElementById('g_validade_picker').addEventListener('change',e=>{
   const iso=e.target.value;

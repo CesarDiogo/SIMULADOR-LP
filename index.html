@@ -59,6 +59,14 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
   .gfields{grid-template-columns:1fr 1fr;overflow:hidden}
   .gfields .field-date{grid-column:1/-1}
 }
+.hist-list{max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.hist-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.hist-info{flex:1;min-width:0;cursor:pointer}
+.hist-name{font-weight:600;color:var(--ink)}
+.hist-meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.hist-del{flex:none;background:none;border:1px solid var(--line);border-radius:6px;color:var(--muted);cursor:pointer;padding:4px 8px;font-size:13px}
+.hist-del:hover{color:#ff7b7b;border-color:#ff7b7b}
+.hist-empty{color:var(--muted);font-size:13px;padding:16px 0;text-align:center}
 .period-ref{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 20px}
 .period-ref b{color:var(--ink);font-weight:600}
 .period-ref .warn{color:var(--warn)}
@@ -235,6 +243,8 @@ datalist{display:none}
   <div class="toolbar">
     <button class="btn primary" id="add">+ Adicionar Produto</button>
     <button class="btn" id="msg">Gerar mensagem (WhatsApp)</button>
+    <button class="btn" id="hist_save">Salvar simulação</button>
+    <button class="btn" id="hist_open">Histórico</button>
     <button class="btn" id="clear">Limpar Tudo</button>
     <span class="app-ver" id="app_ver"></span>
   </div>
@@ -252,6 +262,17 @@ datalist{display:none}
         <button class="btn" id="msg_wa">Abrir no WhatsApp</button>
       </div>
       <div class="msg-hint" id="msg_hint"></div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="hist_bg">
+    <div class="modal">
+      <div class="modal-head">
+        <span>Histórico de simulações</span>
+        <button class="rm" id="hist_close" title="Fechar">✕</button>
+      </div>
+      <div class="hist-list" id="hist_list"></div>
+      <div class="msg-hint" id="hist_hint"></div>
     </div>
   </div>
 
@@ -477,7 +498,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v46';
+const APP_VER='v47';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -781,6 +802,69 @@ document.getElementById('msg_copy').addEventListener('click',async ()=>{
 document.getElementById('msg_wa').addEventListener('click',()=>{
   const txt=document.getElementById('msg_text').value; if(!txt) return;
   window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
+});
+
+// ---- Histórico de simulações ----
+const HIST_KEY='simlp_hist_v1';
+function histLoad(){ try{ return JSON.parse(localStorage.getItem(HIST_KEY))||[]; }catch(e){ return []; } }
+function histStore(arr){ try{ localStorage.setItem(HIST_KEY,JSON.stringify(arr)); return true; }catch(e){ return false; } }
+function snapGlobals(){
+  return {
+    periodo:document.getElementById('g_periodo').value,
+    moeda:document.getElementById('g_moeda').value,
+    dolar:document.getElementById('g_dolar').value,
+    tipo:document.getElementById('g_tipo').value,
+    validade:document.getElementById('g_validade').value,
+    ddf:document.getElementById('g_ddf').value,
+    freightMonth:(document.getElementById('g_freightMonth')||{}).value||'',
+  };
+}
+document.getElementById('hist_save').addEventListener('click',()=>{
+  if(rows.length===0){ alert('Nenhum produto na tela para salvar.'); return; }
+  const nome=(prompt('Nome da simulação (ex: Aroldo):')||'').trim();
+  if(!nome) return;
+  const h=histLoad();
+  h.unshift({name:nome,when:Date.now(),globals:snapGlobals(),rows:JSON.parse(JSON.stringify(rows))});
+  if(h.length>20) h.length=20;
+  if(histStore(h)) alert('✓ Simulação "'+nome+'" salva.');
+  else alert('Não foi possível salvar (armazenamento cheio).');
+});
+function renderHist(){
+  const h=histLoad(); const el=document.getElementById('hist_list');
+  if(h.length===0){ el.innerHTML='<div class="hist-empty">Nenhuma simulação salva ainda.</div>'; return; }
+  el.innerHTML=h.map((s,i)=>{
+    const d=new Date(s.when);
+    const dt=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const prods=s.rows.map(r=>r.produto).filter(Boolean).join(', ')||'—';
+    return `<div class="hist-item"><div class="hist-info" data-hload="${i}"><div class="hist-name">${s.name}</div><div class="hist-meta">${dt} · ${s.rows.length} produto${s.rows.length>1?'s':''} · ${prods}</div></div><button class="hist-del" data-hdel="${i}" title="Excluir">✕</button></div>`;
+  }).join('');
+}
+document.getElementById('hist_open').addEventListener('click',()=>{
+  renderHist();
+  document.getElementById('hist_hint').textContent='Toque numa simulação para carregar.';
+  document.getElementById('hist_bg').classList.add('open');
+});
+document.getElementById('hist_close').addEventListener('click',()=>document.getElementById('hist_bg').classList.remove('open'));
+document.getElementById('hist_bg').addEventListener('click',e=>{ if(e.target.id==='hist_bg') e.target.classList.remove('open'); });
+document.getElementById('hist_list').addEventListener('click',e=>{
+  const del=e.target.closest('[data-hdel]');
+  if(del){
+    const h=histLoad(); h.splice(+del.dataset.hdel,1); histStore(h); renderHist(); return;
+  }
+  const load=e.target.closest('[data-hload]');
+  if(load){
+    const s=histLoad()[+load.dataset.hload]; if(!s) return;
+    const g=s.globals;
+    const set=(id,v)=>{ const el=document.getElementById(id); if(el&&v!==undefined&&v!=='') el.value=v; };
+    set('g_periodo',g.periodo); set('g_moeda',g.moeda); set('g_dolar',g.dolar);
+    set('g_tipo',g.tipo); set('g_validade',g.validade);
+    toggleDDF(); refreshFreightMonth();
+    set('g_ddf',g.ddf); set('g_freightMonth',g.freightMonth);
+    rows=JSON.parse(JSON.stringify(s.rows));
+    rows.forEach((r,i)=>{ uid++; r.id=uid; r.n=i+1; });
+    updatePeriodRef(); renderAll();
+    document.getElementById('hist_bg').classList.remove('open');
+  }
 });
 
 function refreshGlobals(){

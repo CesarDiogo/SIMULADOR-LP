@@ -330,8 +330,9 @@ function extractBase(wb){
 }
 
 const LS_KEY='simlp_base_v1', LS_META='simlp_meta_v1';
-function saveBase(b){ try{ localStorage.setItem(LS_KEY,JSON.stringify(b)); localStorage.setItem(LS_META,JSON.stringify({when:Date.now()})); return true; }catch(e){ return false; } }
-function loadSavedBase(){ try{ const s=localStorage.getItem(LS_KEY); if(!s) return null; const b=JSON.parse(s); const m=JSON.parse(localStorage.getItem(LS_META)||'{}'); return {base:b,when:m.when}; }catch(e){ return null; } }
+function saveBase(b,fname){ try{ localStorage.setItem(LS_KEY,JSON.stringify(b)); localStorage.setItem(LS_META,JSON.stringify({when:Date.now(),fname:fname||''})); return true; }catch(e){ return false; } }
+function loadSavedBase(){ try{ const s=localStorage.getItem(LS_KEY); if(!s) return null; const b=JSON.parse(s); const m=JSON.parse(localStorage.getItem(LS_META)||'{}'); return {base:b,when:m.when,fname:m.fname||''}; }catch(e){ return null; } }
+let BASEFNAME='';
 
 // ---- Frete (tabela separada, persistida em IndexedDB) ----
 const FAT2ORIG={UBA:'UBERABA',ROO:'RONDONÓPOLIS',RVE:'RIO VERDE',PNG:'PARANAGUÁ',SFS:'SÃO FRANCISCO DO SUL',RIG:'RIO GRANDE',SNP:'SINOP',SLZ:'SÃO LUÍS',CND:'CANDEIAS',CAM:'CAMAÇARI',MTB:'MIRITITUBA'};
@@ -372,8 +373,9 @@ function citiesFor(fat,uf){ if(!FB||!CITYIDX) return []; const o=fnorm(FAT2ORIG[
 function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('simlp_idb',1); r.onupgradeneeded=()=>{ r.result.createObjectStore('kv'); }; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
 async function idbSet(k,v){ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=()=>res(true); t.onerror=()=>rej(t.error); }); }
 async function idbGet(k){ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readonly'); const rq=t.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
-async function saveFreight(f){ try{ await idbSet('freight',f); await idbSet('freight_when',Date.now()); return true; }catch(e){ return false; } }
-async function loadFreight(){ try{ const f=await idbGet('freight'); if(!f) return null; const w=await idbGet('freight_when'); return {f,when:w}; }catch(e){ return null; } }
+async function saveFreight(f,fname){ try{ await idbSet('freight',f); await idbSet('freight_when',Date.now()); await idbSet('freight_fname',fname||''); return true; }catch(e){ return false; } }
+let FBNAME='';
+async function loadFreight(){ try{ const f=await idbGet('freight'); if(!f) return null; const w=await idbGet('freight_when'); const n=await idbGet('freight_fname'); return {f,when:w,fname:n||''}; }catch(e){ return null; } }
 
 // resolve o frete (R$/ton) para uma linha: manual sobrepõe; senão busca na tabela
 function resolveFrete(g,row){
@@ -498,7 +500,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v48';
+const APP_VER='v49';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -882,7 +884,6 @@ function updatePeriodRef(){
   const sel=document.getElementById('g_periodo'); const p=sel?sel.value:'';
   const d=PER[p]||{};
   const parts=[];
-  if(d.cod) parts.push('Lista: <b>'+d.cod+'</b>');
   if(d.B4) parts.push('Vencimento da lista: <b>'+fmtDateBR(d.B4)+'</b>');
   if(d.entDe||d.entAte) parts.push('Entrega: <b>'+fmtDateBR(d.entDe)+' a '+fmtDateBR(d.entAte)+'</b>');
   else parts.push('<span class="warn">Janela de entrega: re-suba a tabela de preços</span>');
@@ -892,12 +893,13 @@ function setBaseInfo(when){
   const el=document.getElementById('base_info');
   const n=Object.keys(PR).length.toLocaleString('pt-BR');
   const w = when ? ' · base atualizada em '+new Date(when).toLocaleString('pt-BR') : ' · base original';
-  el.textContent = n+' combinações · '+DD.periodo.join(', ')+w;
+  const fn = BASEFNAME ? '<b>'+BASEFNAME+'</b><br>' : '';
+  el.innerHTML = fn + n+' combinações · '+DD.periodo.join(', ')+w;
   document.getElementById('foot').innerHTML=`Cálculo idêntico às fórmulas da planilha (colunas AA, AB, AE, AI). Frete em R$/ton (mesma unidade do campo manual). As tabelas ficam salvas neste navegador.<br>Atualize a tabela de preços (.xlsx semanal) e, separadamente, a tabela de frete.`;
 }
 function setFreightInfo(){
   const el=document.getElementById('freight_info');
-  if(FB){ const n=Object.keys(FB.data).length.toLocaleString('pt-BR'); const w=FBwhen?(' · atualizada em '+new Date(FBwhen).toLocaleString('pt-BR')):''; el.textContent=n+' rotas · meses '+FB.months[0]+'–'+FB.months[FB.months.length-1]+w; }
+  if(FB){ const n=Object.keys(FB.data).length.toLocaleString('pt-BR'); const w=FBwhen?(' · atualizada em '+new Date(FBwhen).toLocaleString('pt-BR')):''; const fn=FBNAME?'<b>'+FBNAME+'</b><br>':''; el.innerHTML=fn+n+' rotas · meses '+FB.months[0]+'–'+FB.months[FB.months.length-1]+w; }
   else el.textContent='Nenhuma tabela de frete carregada — o campo Frete fica manual.';
 }
 function refreshFreightMonth(){
@@ -923,7 +925,8 @@ document.getElementById('file_base').addEventListener('change', async e=>{
     const wb=XLSX.read(buf,{type:'array',raw:true});
     const b=extractBase(wb);
     applyBase(b);
-    const ok=saveBase(b);
+    BASEFNAME=file.name;
+    const ok=saveBase(b,file.name);
     refreshGlobals(); rows.forEach(renderResult);
     setBaseInfo(ok?Date.now():null);
     status.className='upd-status ok';
@@ -936,6 +939,7 @@ document.getElementById('file_base').addEventListener('change', async e=>{
 });
 document.getElementById('reset_base').addEventListener('click',()=>{
   try{localStorage.removeItem(LS_KEY);localStorage.removeItem(LS_META);}catch(e){}
+  BASEFNAME='';
   applyBase(JSON.parse(JSON.stringify(DEFAULT_DATA)));
   refreshGlobals(); rows.forEach(renderResult); setBaseInfo(null);
   document.getElementById('upd_status').className='upd-status';
@@ -951,7 +955,8 @@ document.getElementById('file_freight').addEventListener('change', async e=>{
     const wb=XLSX.read(buf,{type:'array',raw:true});
     const f=extractFreight(wb);
     applyFreight(f);
-    const ok=await saveFreight(f); FBwhen=ok?Date.now():null;
+    FBNAME=file.name;
+    const ok=await saveFreight(f,file.name); FBwhen=ok?Date.now():null;
     refreshFreightMonth(); setFreightInfo(); renderAll();
     status.className='upd-status ok';
     status.textContent='✓ Frete atualizado: '+Object.keys(f.data).length.toLocaleString('pt-BR')+' rotas, '+f.months.length+' meses'+(ok?' (salvo neste navegador)':' (apenas nesta sessão)');
@@ -959,8 +964,8 @@ document.getElementById('file_freight').addEventListener('change', async e=>{
   e.target.value='';
 });
 document.getElementById('reset_freight').addEventListener('click', async ()=>{
-  try{ await idbSet('freight',null); await idbSet('freight_when',null); }catch(e){}
-  FB=null; FBwhen=null; CITYIDX=null;
+  try{ await idbSet('freight',null); await idbSet('freight_when',null); await idbSet('freight_fname',null); }catch(e){}
+  FB=null; FBwhen=null; FBNAME=''; CITYIDX=null;
   refreshFreightMonth(); setFreightInfo(); renderAll();
   document.getElementById('upd_status_fr').className='upd-status';
   document.getElementById('upd_status_fr').textContent='Tabela de frete removida. Campo Frete volta a ser manual.';
@@ -1046,13 +1051,14 @@ if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{
 const saved=loadSavedBase();
 if(saved&&saved.base&&saved.base.precos){ applyBase(saved.base); } else { applyBase(DEFAULT_DATA); }
 refreshGlobals();
+if(saved&&saved.fname) BASEFNAME=saved.fname;
 setBaseInfo(saved?saved.when:null);
 setFreightInfo();
 addRow();
 document.getElementById('app_ver').textContent=APP_VER;
 
 // carrega frete salvo (IndexedDB) de forma assíncrona
-(async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; refreshFreightMonth(); setFreightInfo(); renderAll(); } }catch(e){} })();
+(async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; FBNAME=fr.fname||''; refreshFreightMonth(); setFreightInfo(); renderAll(); } }catch(e){} })();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });

@@ -500,7 +500,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v49';
+const APP_VER='v50';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1061,7 +1061,24 @@ document.getElementById('app_ver').textContent=APP_VER;
 (async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; FBNAME=fr.fname||''; refreshFreightMonth(); setFreightInfo(); renderAll(); } }catch(e){} })();
 
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  const hadController=!!navigator.serviceWorker.controller;
+  let swReloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(swReloaded||!hadController) return;   // 1ª instalação não recarrega
+    swReloaded=true; window.location.reload();
+  });
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+      reg.update();
+      setInterval(()=>reg.update(), 30*60*1000);  // checa a cada 30 min
+    }).catch(()=>{});
+  });
+  // checa atualização sempre que o app volta ao primeiro plano
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){
+      navigator.serviceWorker.getRegistration().then(reg=>{ if(reg) reg.update(); }).catch(()=>{});
+    }
+  });
 }
 </script>
 </body>

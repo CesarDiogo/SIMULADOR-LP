@@ -500,7 +500,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v50';
+const APP_VER='v51';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -618,6 +618,7 @@ function renderResult(r){
       <div class="price-line">
         <span class="pl-item">Preço NET <b>${fmt(f.Y,cur)}</b></span>
         <span class="pl-item">Preço a Prazo <b>${fmt(f.T,cur)}</b></span>
+        <span class="pl-item">Juros <b>${f.V===null?'sem juros (falta validade)':f.V.toFixed(0)+' dias = '+(f.W*100).toFixed(2)+'% de juros'}</b></span>
         ${freightInfo(g,r)}
       </div>`;
     return;
@@ -640,7 +641,7 @@ function renderResult(r){
       <div class="mval ${cls(m.v)}">${fmt(m.v,cur)}</div>
       <div class="mconv">${conv(m.v,g)}</div>
     </div>`).join('');
-  const Vtxt = res.V===null?'<span class="pl-warn">sem juros (falta validade)</span>':res.V.toFixed(0)+' dias';
+  const Vtxt = res.V===null?'<span class="pl-warn">sem juros (falta validade)</span>':res.V.toFixed(0)+' dias = '+(res.W*100).toFixed(2)+'% de juros';
   const det=[['B · Preço Lista',fmt(res.B,cur)],['C · ICMS emb %',(res.C*100).toFixed(2)+'%'],['D · ICMS emb',fmt(res.D,cur)],
     ['E · PIS/COF emb',fmt(res.E,cur)],['UF Fat',res.I],['R · ICMS %',(res.R*100).toFixed(2)+'%'],
     ['O · Comissão %',(res.O*100).toFixed(2)+'%'],['Q · Preço base',fmt(res.Q,cur)],['T · Preço a Prazo',fmt(res.T,cur)],

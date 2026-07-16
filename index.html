@@ -500,7 +500,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v51';
+const APP_VER='v52';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -776,7 +776,12 @@ function buildMessage(){
   const head=['---*Cotação Cibra*---'];
   head.push('*Moeda*: '+qs[0].moeda+(isBRL?(' (PTAX '+nfmt(qs[0].ptx)+')'):' (PTAX do dia do vcto)'));
   if(juros!=null||antcp!=null) head.push('*Juros*: '+pct(juros)+'  |  Antecipação: '+pct(antcp));
-  head.push('*Vencimento*: '+qs[0].venc);
+  if(g.tipo==='DDF'){
+    if(qs[0].venc && qs[0].venc!=='—') head.push('*Validade*: '+qs[0].venc);
+    head.push('*Pgto*: '+(parseFloat(g.ddf)||0)+' DDF');
+  } else {
+    head.push('*Vencimento*: '+qs[0].venc);
+  }
   if(g.freightMonth) head.push('*Entrega*: '+mesBR(g.freightMonth));
   const blocos=[];
   // CIF agrupado por cidade/UF (destino)

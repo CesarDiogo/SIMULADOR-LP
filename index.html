@@ -272,6 +272,12 @@ datalist{display:none}
         <button class="rm" id="hist_close" title="Fechar">✕</button>
       </div>
       <div class="hist-list" id="hist_list"></div>
+      <div class="modal-actions">
+        <button class="btn" id="hist_export">Exportar</button>
+        <label class="btn upd-btn" style="cursor:pointer">Importar
+          <input type="file" id="hist_import" accept="application/json,.json" hidden>
+        </label>
+      </div>
       <div class="msg-hint" id="hist_hint"></div>
     </div>
   </div>
@@ -500,7 +506,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v52';
+const APP_VER='v53';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -854,6 +860,40 @@ document.getElementById('hist_open').addEventListener('click',()=>{
 });
 document.getElementById('hist_close').addEventListener('click',()=>document.getElementById('hist_bg').classList.remove('open'));
 document.getElementById('hist_bg').addEventListener('click',e=>{ if(e.target.id==='hist_bg') e.target.classList.remove('open'); });
+document.getElementById('hist_export').addEventListener('click',()=>{
+  const h=histLoad();
+  const hint=document.getElementById('hist_hint');
+  if(h.length===0){ hint.className='msg-hint'; hint.textContent='Nada para exportar — histórico vazio.'; return; }
+  const blob=new Blob([JSON.stringify({app:'simlp',type:'historico',v:1,when:Date.now(),items:h},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const ds=new Date().toISOString().slice(0,10);
+  a.href=url; a.download='simulador_historico_'+ds+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  hint.className='msg-hint ok'; hint.textContent='✓ Arquivo exportado ('+h.length+' simulaç'+(h.length>1?'ões':'ão')+').';
+});
+document.getElementById('hist_import').addEventListener('change',async e=>{
+  const file=e.target.files[0]; const hint=document.getElementById('hist_hint');
+  if(!file) return;
+  try{
+    const txt=await file.text();
+    const data=JSON.parse(txt);
+    const imp=Array.isArray(data)?data:(data&&Array.isArray(data.items)?data.items:null);
+    if(!imp) throw new Error('Arquivo inválido');
+    const valid=imp.filter(s=>s&&s.name&&Array.isArray(s.rows)&&s.globals);
+    if(valid.length===0) throw new Error('Nenhuma simulação válida no arquivo');
+    const cur=histLoad();
+    const seen=new Set(cur.map(s=>s.name+'|'+s.when));
+    let add=0;
+    valid.forEach(s=>{ const k=s.name+'|'+s.when; if(!seen.has(k)){ seen.add(k); cur.push(s); add++; } });
+    cur.sort((a,b)=>(b.when||0)-(a.when||0));
+    if(cur.length>50) cur.length=50;
+    histStore(cur); renderHist();
+    hint.className='msg-hint ok'; hint.textContent='✓ Importado: '+add+' nova(s), '+(valid.length-add)+' já existia(m).';
+  }catch(err){ hint.className='msg-hint'; hint.textContent='✗ '+err.message; }
+  e.target.value='';
+});
 document.getElementById('hist_list').addEventListener('click',e=>{
   const del=e.target.closest('[data-hdel]');
   if(del){

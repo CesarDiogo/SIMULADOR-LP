@@ -329,8 +329,17 @@ function extractBase(wb){
   for(let i=1;i<ap.length;i++){ const r=ap[i]; if(!r) continue;
     const p=r[8]; if(p!==null&&p!==''&&String(p).startsWith('Q')&&!(String(p) in per)) per[String(p)]={B4:serialToISO(r[9]),E2:num(r[15]),D2:num(r[16]),G2:num(r[17]),F2:num(r[18]),T:r[19],entDe:serialToISO(r[13]),entAte:serialToISO(r[14]),cod:r[10]!=null?String(r[10]):'',valDe:serialToISO(r[11]),valAte:serialToISO(r[12])};
     const b=r[1]; if(b!==null&&b!==''&&b!=='FAT'&&!(String(b) in fatUF)) fatUF[String(b)]=r[2]!=null?String(r[2]):''; }
-  const col=(ci,lo,hi)=>{ const out=[]; for(let rr=lo;rr<=hi;rr++){ const r=ap[rr-1]; if(!r)continue; const v=r[ci]; if(v!==null&&v!==''&&!out.includes(String(v))) out.push(String(v)); } return out; };
-  const dd={ periodo:col(8,2,11), fat:col(1,2,12), exp:col(0,2,15), ufExp:col(4,2,29), produto:col(6,2,683), emb:col(22,2,5), listaRep:col(24,2,3), moeda:col(28,2,3), tipoPgto:col(30,2,3), i4:col(26,2,21) };
+  // varre a coluna a partir de `lo`, ignorando linhas em branco (a planilha às vezes vem
+  // com buracos entre as opções); para após uma sequência longa de vazios para não
+  // capturar blocos de dados não relacionados mais abaixo.
+  const col=(ci,lo)=>{ const out=[]; let gap=0;
+    for(let rr=lo;rr<=ap.length;rr++){ const r=ap[rr-1];
+      const v=r?r[ci]:null;
+      if(v===null||v===undefined||v===''){ if(out.length&&++gap>30) break; continue; }
+      gap=0; const s=String(v).trim();
+      if(s!==''&&!out.includes(s)) out.push(s); }
+    return out; };
+  const dd={ periodo:col(8,2), fat:col(1,2), exp:col(0,2), ufExp:col(4,2), produto:col(6,2), emb:col(22,2), listaRep:col(24,2), moeda:col(28,2), tipoPgto:col(30,2), i4:col(26,2) };
   if(Object.keys(precos).length<500) throw new Error('Poucos preços lidos ('+Object.keys(precos).length+'). Verifique se é o arquivo correto.');
   return {precos,icms,periodo:per,fatUF,dd};
 }
@@ -506,7 +515,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v53';
+const APP_VER='v54';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}

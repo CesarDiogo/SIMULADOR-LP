@@ -515,7 +515,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v54';
+const APP_VER='v55';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -770,7 +770,9 @@ function rowQuote(g,r){
   } else {
     const res=calc(g,r); if(res.err) return null;
     const v=parseFloat(r.venda);
-    price=(r.venda!==''&&!Number.isNaN(v))?v:res.B;
+    const rate=parseFloat(g.dolar)||1;
+    // o preço digitado pode estar em R$ (botão R$ ao lado do campo); internamente tudo é US$
+    price=(r.venda!==''&&!Number.isNaN(v))?((r.vendaMoeda==='BRL')?v/rate:v):res.B;
   }
   const cidade=r.cidade||'';
   const uf=r.ufExp||FUF[r.fat]||'';

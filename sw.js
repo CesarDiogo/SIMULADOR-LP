@@ -1,4 +1,4 @@
-const CACHE = 'simlp-v55';
+const CACHE = 'simlp-v56';
 const SHELL = [
   './',
   './index.html',

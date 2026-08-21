@@ -242,7 +242,8 @@ datalist{display:none}
 
   <div class="toolbar">
     <button class="btn primary" id="add">+ Adicionar Produto</button>
-    <button class="btn" id="msg">Gerar mensagem (WhatsApp)</button>
+    <button class="btn" id="msg">Msg Cliente</button>
+    <button class="btn" id="msg_int">Msg Interna</button>
     <button class="btn" id="hist_save">Salvar simulação</button>
     <button class="btn" id="hist_open">Histórico</button>
     <button class="btn" id="clear">Limpar Tudo</button>
@@ -253,7 +254,7 @@ datalist{display:none}
   <div class="modal-bg" id="modal_bg">
     <div class="modal">
       <div class="modal-head">
-        <span>Mensagem para envio</span>
+        <span id="msg_title">Mensagem para envio</span>
         <button class="rm" id="modal_close" title="Fechar">✕</button>
       </div>
       <textarea id="msg_text" readonly></textarea>
@@ -515,7 +516,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v55';
+const APP_VER='v56';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -763,34 +764,36 @@ document.getElementById('clear').addEventListener('click',()=>{rows=[];renderAll
 function fmtDateBR(iso){ return iso ? isoToBR(iso) : '—'; }
 function rowQuote(g,r){
   if(!r.produto||!r.fat||!r.exp||!r.emb) return null;
-  let price;
+  let price, met;
   if(r.mode==='meta'||r.mode==='desc'){
     const sol = r.mode==='desc' ? solvePrice(g,r,'','',r.tgtAA) : solvePrice(g,r,r.tgtAE,r.tgtAI,'');
-    if(sol.err) return null; price=sol.price;
+    if(sol.err) return null; price=sol.price; met=sol.fwd;
   } else {
     const res=calc(g,r); if(res.err) return null;
     const v=parseFloat(r.venda);
     const rate=parseFloat(g.dolar)||1;
     // o preço digitado pode estar em R$ (botão R$ ao lado do campo); internamente tudo é US$
     price=(r.venda!==''&&!Number.isNaN(v))?((r.vendaMoeda==='BRL')?v/rate:v):res.B;
+    met=res;
   }
   const cidade=r.cidade||'';
   const uf=r.ufExp||FUF[r.fat]||'';
   const ptx=parseFloat(g.dolar)||0;
   const origem=FAT2ORIG[r.fat]||r.fat;
   const valor = g.moeda==='BRL' ? ('R$ '+nfmt(price*ptx)) : ('US$ '+nfmt(price));
-  return {produto:r.produto, cond: cidade?'CIF':'FOB', cidade, uf, origem, moeda:g.moeda, ptx, valor, venc:fmtDateBR(g.validade)};
+  return {produto:r.produto, cond: cidade?'CIF':'FOB', cidade, uf, origem, moeda:g.moeda, ptx, valor, venc:fmtDateBR(g.validade),
+          AE:met?met.AE:null, AI:met?met.AI:null, AA:met?met.AA:null};
 }
 function mesBR(ym){ if(!ym) return ''; const p=String(ym).split('-'); if(p.length<2) return ym; const m=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][parseInt(p[1],10)-1]||p[1]; return m+'/'+p[0]; }
 function pct(v){ return (v==null)?'—':((Number(v)*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:2})+'%'); }
-function buildMessage(){
+function buildMessage(interna){
   const g=getGlobals();
   const qs=[]; rows.forEach(r=>{ const q=rowQuote(g,r); if(q) qs.push(q); });
   if(qs.length===0) return '';
   const per=PER[g.periodo]||{};
   const isBRL=qs[0].moeda==='BRL';
   const juros=isBRL?per.E2:per.D2, antcp=isBRL?per.G2:per.F2;
-  const head=['---*Cotação Cibra*---'];
+  const head=[interna?'---*Cotação Cibra — INTERNO*---':'---*Cotação Cibra*---'];
   head.push('*Moeda*: '+qs[0].moeda+(isBRL?(' (PTAX '+nfmt(qs[0].ptx)+')'):' (PTAX do dia do vcto)'));
   if(juros!=null||antcp!=null) head.push('*Juros*: '+pct(juros)+'  |  Antecipação: '+pct(antcp));
   if(g.tipo==='DDF'){
@@ -800,22 +803,31 @@ function buildMessage(){
     head.push('*Vencimento*: '+qs[0].venc);
   }
   if(g.freightMonth) head.push('*Entrega*: '+mesBR(g.freightMonth));
+  const ptx=qs[0].ptx;
+  const money=v=>(v==null||Number.isNaN(v))?'—':(isBRL?('R$ '+nfmt(v*ptx)):('US$ '+nfmt(v)));
+  // linha extra só na versão interna: margens do produto
+  const extra=q=> interna ? ('\n   ↳ Presumida '+money(q.AE)+' · P&L '+money(q.AI)) : '';
   const blocos=[];
   // CIF agrupado por cidade/UF (destino)
   const cifG={}; qs.filter(q=>q.cond==='CIF').forEach(q=>{ const k=q.cidade+'/'+q.uf; (cifG[k]=cifG[k]||[]).push(q); });
-  Object.keys(cifG).forEach(loc=>{ blocos.push('*CIF*- '+loc+'\n'+cifG[loc].map(q=>'* *'+q.produto+'*: '+q.valor).join('\n')); });
+  Object.keys(cifG).forEach(loc=>{ blocos.push('*CIF*- '+loc+'\n'+cifG[loc].map(q=>'* *'+q.produto+'*: '+q.valor+extra(q)).join('\n')); });
   // FOB agrupado por faturamento (origem); UF de destino na linha
   const fobG={}; qs.filter(q=>q.cond==='FOB').forEach(q=>{ const k=q.origem; (fobG[k]=fobG[k]||[]).push(q); });
-  Object.keys(fobG).forEach(o=>{ blocos.push('*FOB*- '+o+'\n'+fobG[o].map(q=>'* *'+q.produto+'*: '+q.valor+(q.uf?(' — '+q.uf):'')).join('\n')); });
-  return head.join('\n')+'\n\n'+blocos.join('\n');
+  Object.keys(fobG).forEach(o=>{ blocos.push('*FOB*- '+o+'\n'+fobG[o].map(q=>'* *'+q.produto+'*: '+q.valor+(q.uf?(' — '+q.uf):'')+extra(q)).join('\n')); });
+  const foot = interna ? '\n\n_Uso interno — não enviar ao cliente._' : '';
+  return head.join('\n')+'\n\n'+blocos.join('\n')+foot;
 }
-document.getElementById('msg').addEventListener('click',()=>{
-  const txt=buildMessage();
+function openMsg(interna){
+  const txt=buildMessage(interna);
   const hint=document.getElementById('msg_hint');
+  document.getElementById('msg_title').textContent = interna ? 'Mensagem interna (com margens)' : 'Mensagem para o cliente';
   if(!txt){ hint.className='msg-hint'; document.getElementById('msg_text').value=''; hint.textContent='Nenhum produto válido. Preencha ao menos um produto com preço.'; }
-  else { document.getElementById('msg_text').value=txt; hint.className='msg-hint'; hint.textContent='Confira o texto e use "Copiar" ou "Abrir no WhatsApp".'; }
+  else { document.getElementById('msg_text').value=txt; hint.className='msg-hint';
+         hint.textContent = interna ? 'Contém margens — uso interno.' : 'Confira o texto e use "Copiar" ou "Abrir no WhatsApp".'; }
   document.getElementById('modal_bg').classList.add('open');
-});
+}
+document.getElementById('msg').addEventListener('click',()=>openMsg(false));
+document.getElementById('msg_int').addEventListener('click',()=>openMsg(true));
 document.getElementById('modal_close').addEventListener('click',()=>document.getElementById('modal_bg').classList.remove('open'));
 document.getElementById('modal_bg').addEventListener('click',e=>{ if(e.target.id==='modal_bg') e.target.classList.remove('open'); });
 document.getElementById('msg_copy').addEventListener('click',async ()=>{

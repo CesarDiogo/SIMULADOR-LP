@@ -516,7 +516,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v57';
+const APP_VER='v58';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -803,10 +803,10 @@ function buildMessage(interna){
     head.push('*Vencimento*: '+qs[0].venc);
   }
   if(g.freightMonth) head.push('*Entrega*: '+mesBR(g.freightMonth));
-  const ptx=qs[0].ptx;
-  const money=v=>(v==null||Number.isNaN(v))?'—':(isBRL?('R$ '+nfmt(v*ptx)):('US$ '+nfmt(v)));
+  // margens sempre em US$ (padrão interno) e sem símbolo de moeda
+  const mval=v=>(v==null||Number.isNaN(v))?'—':nfmt(v);
   // linha extra só na versão interna: margens do produto
-  const extra=q=> interna ? ('\n   ↳ Presumida '+money(q.AE)+' · P&L '+money(q.AI)+' · Desconto '+money(q.AA)) : '';
+  const extra=q=> interna ? ('\n   ↳ Presumida '+mval(q.AE)+' · P&L '+mval(q.AI)+' · Desconto '+mval(q.AA)) : '';
   const blocos=[];
   // CIF agrupado por cidade/UF (destino)
   const cifG={}; qs.filter(q=>q.cond==='CIF').forEach(q=>{ const k=q.cidade+'/'+q.uf; (cifG[k]=cifG[k]||[]).push(q); });

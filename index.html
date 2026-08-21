@@ -516,7 +516,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v58';
+const APP_VER='v59';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1044,6 +1044,15 @@ document.getElementById('reset_freight').addEventListener('click', async ()=>{
 const prodDD=document.createElement('div'); prodDD.className='prod-dd'; document.body.appendChild(prodDD);
 let activeProdInput=null;
 function snorm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+function medirAlturaDD(){
+  // altura REAL da lista já renderizada. Precisa estar visível pra medir, então
+  // abre escondido e fecha no mesmo tick (o browser não repinta no meio disso).
+  const aberto=prodDD.classList.contains('open');
+  if(!aberto){ prodDD.style.visibility='hidden'; prodDD.classList.add('open'); }
+  const h=prodDD.offsetHeight;
+  if(!aberto){ prodDD.classList.remove('open'); prodDD.style.visibility=''; }
+  return h;
+}
 function positionProdDD(input){
   const r=input.getBoundingClientRect();
   const vv=window.visualViewport;
@@ -1059,14 +1068,17 @@ function positionProdDD(input){
   prodDD.style.width=Math.max(r.width,240)+'px';
   const showAbove=isMobile?(spaceAbove>60):(spaceBelow<120&&spaceAbove>spaceBelow);
   if(showAbove){
-    const h=Math.max(56,Math.min(spaceAbove,maxH));
+    const lim=Math.max(56,Math.min(spaceAbove,maxH));
+    prodDD.style.maxHeight=lim+'px';
+    // Ancora pelo FUNDO: usa a altura real da lista, nunca o limite. Com a busca
+    // filtrada em poucos itens o balão ficava "lim" px acima do campo e aparecia
+    // solto lá em cima; agora o fundo dele fica sempre 4px acima do campo.
     prodDD.style.bottom='';
-    prodDD.style.top=(sY+r.top-h-4)+'px';
-    prodDD.style.maxHeight=h+'px';
+    prodDD.style.top=(sY+r.top-medirAlturaDD()-4)+'px';
   } else {
-    prodDD.style.top=(sY+r.bottom+4)+'px';
-    prodDD.style.bottom='';
     prodDD.style.maxHeight=Math.max(96,Math.min(spaceBelow,maxH))+'px';
+    prodDD.style.bottom='';
+    prodDD.style.top=(sY+r.bottom+4)+'px';
   }
 }
 function buildProdDDContent(input){
@@ -1082,18 +1094,22 @@ function openProdDD(input){
   if(isMobile && vv){
     const kbOpen=vv.height<window.screen.height*0.75;
     if(kbOpen){
-      positionProdDD(input); prodDD.classList.add('open');
+      abrirProdDD(input);
     } else {
       prodDD.classList.remove('open');
       let done=false;
-      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; positionProdDD(input); prodDD.classList.add('open'); } };
+      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; abrirProdDD(input); } };
       const onResize=()=>{ vv.removeEventListener('resize',onResize); clearTimeout(fb); finish(); };
       const fb=setTimeout(()=>{ vv.removeEventListener('resize',onResize); finish(); },700);
       vv.addEventListener('resize',onResize);
     }
   } else {
-    positionProdDD(input); prodDD.classList.add('open');
+    abrirProdDD(input);
   }
+}
+function abrirProdDD(input){
+  positionProdDD(input); prodDD.classList.add('open');
+  setTimeout(reancoraProdDD,260); setTimeout(reancoraProdDD,540);
 }
 function hideProdDD(){ prodDD.classList.remove('open'); activeProdInput=null; }
 const rowsEl=document.getElementById('rows');
@@ -1107,14 +1123,15 @@ rowsEl.addEventListener('input',e=>{
     buildProdDDContent(e.target);
     // se ao digitar o dropdown ainda não abriu (callback de teclado não disparou), abre agora
     // neste ponto o teclado já está aberto, então openProdDD mostra imediatamente
-    if(!prodDD.classList.contains('open')) openProdDD(e.target);
+    if(!prodDD.classList.contains('open')) openProdDD(e.target); else positionProdDD(e.target);
   }
 });
 prodDD.addEventListener('mousedown',e=>{ const opt=e.target.closest('.opt'); if(!opt||!activeProdInput) return; e.preventDefault(); const inp=activeProdInput; inp.value=opt.dataset.val; inp.dispatchEvent(new Event('input',{bubbles:true})); hideProdDD(); });
 document.addEventListener('click',e=>{ if(prodDD.contains(e.target)) return; if(e.target.dataset && e.target.dataset.f==='produto') return; hideProdDD(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') hideProdDD(); });
-window.addEventListener('scroll',()=>{ if(activeProdInput&&!document.body.contains(activeProdInput)) hideProdDD(); },true);
-if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{ if(activeProdInput&&prodDD.classList.contains('open')) positionProdDD(activeProdInput); }); }
+function reancoraProdDD(){ if(activeProdInput&&prodDD.classList.contains('open')) positionProdDD(activeProdInput); }
+window.addEventListener('scroll',()=>{ if(activeProdInput&&!document.body.contains(activeProdInput)){ hideProdDD(); return; } reancoraProdDD(); },true);
+if(window.visualViewport){ window.visualViewport.addEventListener('resize',reancoraProdDD); window.visualViewport.addEventListener('scroll',reancoraProdDD); }
 
 // init
 const saved=loadSavedBase();

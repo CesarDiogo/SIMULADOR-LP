@@ -70,6 +70,7 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .period-ref{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 20px}
 .period-ref b{color:var(--ink);font-weight:600}
 .period-ref .warn{color:var(--warn)}
+.base-warn{color:var(--warn);font-weight:600}
 .period-ref:empty{display:none}
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase}
@@ -518,7 +519,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v59';
+const APP_VER='v60';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -965,7 +966,11 @@ function setBaseInfo(when){
   const n=Object.keys(PR).length.toLocaleString('pt-BR');
   const w = when ? ' · base atualizada em '+new Date(when).toLocaleString('pt-BR') : ' · base original';
   const fn = BASEFNAME ? '<b>'+BASEFNAME+'</b><br>' : '';
-  el.innerHTML = fn + n+' combinações · '+DD.periodo.join(', ')+w;
+  // base gravada por versão antiga do app não tem o Ajuste MP -> margem presumida sai errada
+  const k0=Object.keys(PR)[0];
+  const semMP = !!(k0 && Array.isArray(PR[k0]) && PR[k0].length<8);
+  const alerta = semMP ? '<br><span class="base-warn">⚠ Base sem o campo Ajuste MP — re-suba a tabela de preços para a Margem Presumida ficar correta.</span>' : '';
+  el.innerHTML = fn + n+' combinações · '+DD.periodo.join(', ')+w + alerta;
   document.getElementById('foot').innerHTML=`Cálculo idêntico às fórmulas da planilha (colunas AA, AB, AE, AI). Frete em R$/ton (mesma unidade do campo manual). As tabelas ficam salvas neste navegador.<br>Atualize a tabela de preços (.xlsx semanal) e, separadamente, a tabela de frete.`;
 }
 function setFreightInfo(){

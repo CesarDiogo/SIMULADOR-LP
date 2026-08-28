@@ -323,7 +323,7 @@ function extractBase(wb){
   const serialToISO=s=>{ if(s===null||s===undefined||s==='') return null; if(typeof s==='string') return s; const ms=Date.UTC(1899,11,30)+Math.round(s)*86400000; return new Date(ms).toISOString().slice(0,10); };
   const pr=sheet('Preços'); const precos={};
   for(let i=1;i<pr.length;i++){ const r=pr[i]; if(!r) continue; const k=r[0]; if(k===null||k==='') continue; const ks=String(k); if(ks in precos) continue;
-    precos[ks]=[num(r[14]),num(r[16]),num(r[22]),num(r[23]),num(r[24]),num(r[29]),num(r[30])]; }
+    precos[ks]=[num(r[14]),num(r[16]),num(r[22]),num(r[23]),num(r[24]),num(r[29]),num(r[30]),num(r[18]),r[6]!=null?String(r[6]):'']; }
   const ic=sheet('ICMS'); const icms={};
   for(let i=1;i<ic.length;i++){ const r=ic[i]; if(!r) continue; const h=r[7]; if(h===null||h==='') continue; if(String(h) in icms) continue; icms[String(h)]=num(r[6]); }
   const ap=sheet('Apoio'); const per={}, fatUF={};
@@ -439,12 +439,13 @@ function computeV(g){
   return daysBetween(F4,B4)/2 + I4;
 }
 
+const isPrimaz=f=>String(f||'').trim().toUpperCase()==='PRIMAZ';
 function calc(g,row){
   if(!row.produto||!row.fat||!row.exp||!row.emb) return {err:'Preencha Produto, Fat, Exp e Embalagem'};
   const key=[g.periodo,row.fat,row.exp,row.produto,row.emb,g.moeda].join('-');
   const p=PR[key];
   if(!p) return {err:'Combinação sem preço na base', key};
-  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
+  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr,MP_pr,FAM_pr]=p;
   const I3=parseFloat(g.dolar)||1;
   const L=resolveFrete(g,row).value;
   const _vendaRaw=parseFloat(row.venda)||0; const M=(row.vendaMoeda==='BRL'&&_vendaRaw)?_vendaRaw/I3:_vendaRaw;
@@ -466,7 +467,8 @@ function calc(g,row){
   const W=(V!==null)?( (rate||0)*(V/30) ):0;        // juros %
   const X=T-T/(1+W);                                // financ
   const Y=T-U-X;                                    // Preço NET c/ PIS/COFINS
-  const AC=(O_pr!==null&&Q_pr!==null)?(O_pr+Q_pr-20):null; // CPV Presumido
+  // CPV Presumido = CPV Custo + Ajuste CFR + Ajuste MP - 20 (sem o -20 na familia PRIMAZ)
+  const AC=(O_pr!==null&&Q_pr!==null)?(O_pr+Q_pr+(MP_pr||0)-(isPrimaz(FAM_pr)?0:20)):null;
   const AD=O_pr;                                    // CPV
   const P=O*T;                                      // comissão usd
   // alvos
@@ -483,7 +485,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
   if(!row.produto||!row.fat||!row.exp||!row.emb) return {err:'Preencha Produto, Fat, Exp e Embalagem'};
   const key=[g.periodo,row.fat,row.exp,row.produto,row.emb,g.moeda].join('-');
   const p=PR[key]; if(!p) return {err:'Combinação sem preço na base',key};
-  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr]=p;
+  const [O_pr,Q_pr,W_pr,X_pr,Y_pr,AD_pr,AE_pr,MP_pr,FAM_pr]=p;
   const I3=parseFloat(g.dolar)||1, L=resolveFrete(g,row).value;
   const ufFat=FUF[row.fat]||'', ufExp=row.ufExp||ufFat;
   const R=IC[ufFat+ufExp+String(PER[g.periodo].T)]!==undefined?IC[ufFat+ufExp+String(PER[g.periodo].T)]:0;
@@ -491,7 +493,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
   const probe=calc(g,{...row,venda:'1'}); const W=probe.W; // juros independe de M
   const k_x=W/(1+W);
   const k_u=(AD_pr>0)?(0.00925/(1-0.00925)):0;
-  const AC=O_pr+Q_pr-20, AD=O_pr;
+  const AC=O_pr+Q_pr+(MP_pr||0)-(isPrimaz(FAM_pr)?0:20), AD=O_pr;
   const B=Y_pr||0, C=X_pr||0, D=B*C, E=AE_pr||0;   // fixos (não dependem do preço)
   function priceFor(type,val){
     let T, den;
@@ -1044,15 +1046,6 @@ document.getElementById('reset_freight').addEventListener('click', async ()=>{
 const prodDD=document.createElement('div'); prodDD.className='prod-dd'; document.body.appendChild(prodDD);
 let activeProdInput=null;
 function snorm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
-function medirAlturaDD(){
-  // altura REAL da lista já renderizada. Precisa estar visível pra medir, então
-  // abre escondido e fecha no mesmo tick (o browser não repinta no meio disso).
-  const aberto=prodDD.classList.contains('open');
-  if(!aberto){ prodDD.style.visibility='hidden'; prodDD.classList.add('open'); }
-  const h=prodDD.offsetHeight;
-  if(!aberto){ prodDD.classList.remove('open'); prodDD.style.visibility=''; }
-  return h;
-}
 function positionProdDD(input){
   const r=input.getBoundingClientRect();
   const vv=window.visualViewport;
@@ -1068,17 +1061,14 @@ function positionProdDD(input){
   prodDD.style.width=Math.max(r.width,240)+'px';
   const showAbove=isMobile?(spaceAbove>60):(spaceBelow<120&&spaceAbove>spaceBelow);
   if(showAbove){
-    const lim=Math.max(56,Math.min(spaceAbove,maxH));
-    prodDD.style.maxHeight=lim+'px';
-    // Ancora pelo FUNDO: usa a altura real da lista, nunca o limite. Com a busca
-    // filtrada em poucos itens o balão ficava "lim" px acima do campo e aparecia
-    // solto lá em cima; agora o fundo dele fica sempre 4px acima do campo.
+    const h=Math.max(56,Math.min(spaceAbove,maxH));
     prodDD.style.bottom='';
-    prodDD.style.top=(sY+r.top-medirAlturaDD()-4)+'px';
+    prodDD.style.top=(sY+r.top-h-4)+'px';
+    prodDD.style.maxHeight=h+'px';
   } else {
-    prodDD.style.maxHeight=Math.max(96,Math.min(spaceBelow,maxH))+'px';
-    prodDD.style.bottom='';
     prodDD.style.top=(sY+r.bottom+4)+'px';
+    prodDD.style.bottom='';
+    prodDD.style.maxHeight=Math.max(96,Math.min(spaceBelow,maxH))+'px';
   }
 }
 function buildProdDDContent(input){
@@ -1094,22 +1084,18 @@ function openProdDD(input){
   if(isMobile && vv){
     const kbOpen=vv.height<window.screen.height*0.75;
     if(kbOpen){
-      abrirProdDD(input);
+      positionProdDD(input); prodDD.classList.add('open');
     } else {
       prodDD.classList.remove('open');
       let done=false;
-      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; abrirProdDD(input); } };
+      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; positionProdDD(input); prodDD.classList.add('open'); } };
       const onResize=()=>{ vv.removeEventListener('resize',onResize); clearTimeout(fb); finish(); };
       const fb=setTimeout(()=>{ vv.removeEventListener('resize',onResize); finish(); },700);
       vv.addEventListener('resize',onResize);
     }
   } else {
-    abrirProdDD(input);
+    positionProdDD(input); prodDD.classList.add('open');
   }
-}
-function abrirProdDD(input){
-  positionProdDD(input); prodDD.classList.add('open');
-  setTimeout(reancoraProdDD,260); setTimeout(reancoraProdDD,540);
 }
 function hideProdDD(){ prodDD.classList.remove('open'); activeProdInput=null; }
 const rowsEl=document.getElementById('rows');
@@ -1123,15 +1109,14 @@ rowsEl.addEventListener('input',e=>{
     buildProdDDContent(e.target);
     // se ao digitar o dropdown ainda não abriu (callback de teclado não disparou), abre agora
     // neste ponto o teclado já está aberto, então openProdDD mostra imediatamente
-    if(!prodDD.classList.contains('open')) openProdDD(e.target); else positionProdDD(e.target);
+    if(!prodDD.classList.contains('open')) openProdDD(e.target);
   }
 });
 prodDD.addEventListener('mousedown',e=>{ const opt=e.target.closest('.opt'); if(!opt||!activeProdInput) return; e.preventDefault(); const inp=activeProdInput; inp.value=opt.dataset.val; inp.dispatchEvent(new Event('input',{bubbles:true})); hideProdDD(); });
 document.addEventListener('click',e=>{ if(prodDD.contains(e.target)) return; if(e.target.dataset && e.target.dataset.f==='produto') return; hideProdDD(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') hideProdDD(); });
-function reancoraProdDD(){ if(activeProdInput&&prodDD.classList.contains('open')) positionProdDD(activeProdInput); }
-window.addEventListener('scroll',()=>{ if(activeProdInput&&!document.body.contains(activeProdInput)){ hideProdDD(); return; } reancoraProdDD(); },true);
-if(window.visualViewport){ window.visualViewport.addEventListener('resize',reancoraProdDD); window.visualViewport.addEventListener('scroll',reancoraProdDD); }
+window.addEventListener('scroll',()=>{ if(activeProdInput&&!document.body.contains(activeProdInput)) hideProdDD(); },true);
+if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{ if(activeProdInput&&prodDD.classList.contains('open')) positionProdDD(activeProdInput); }); }
 
 // init
 const saved=loadSavedBase();

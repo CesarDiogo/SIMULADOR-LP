@@ -144,6 +144,38 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .dcell .dn{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
 .dcell .dv{font-family:var(--mono);font-size:13px;color:var(--ink);margin-top:2px}
 
+.dtable{padding:18px 18px 20px;margin:26px 0 22px}
+.dtable-toggle{cursor:pointer}
+.dtable-sub{color:var(--muted);font-size:12.5px;line-height:1.5;margin:-4px 0 16px;max-width:640px}
+.dtable-ctx{margin-bottom:16px}
+.dtable-addprod{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.dtable-addprod input{flex:1;min-width:200px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:10px 11px;font-family:var(--mono);font-size:14px;outline:none}
+.dtable-addprod input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(139,240,106,.12)}
+.dt-rm-prod{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:6px;cursor:pointer;font-size:12px;padding:2px 7px;margin-left:8px;vertical-align:middle}
+.dt-rm-prod:hover{color:var(--neg);border-color:var(--neg)}
+.dtable-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.dtable-wrap{overflow-x:auto}
+.dtable-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
+.dtable-table th,.dtable-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.dtable-table th{color:var(--faint);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;vertical-align:bottom}
+.dtable-table th.dt-per select{font-size:11px;padding:5px 6px;margin-right:4px}
+.dt-rm-col{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:5px;cursor:pointer;font-size:11px;padding:1px 5px;vertical-align:middle}
+.dt-rm-col:hover{color:var(--neg);border-color:var(--neg)}
+.dt-prod{color:var(--ink);white-space:normal;min-width:170px}
+.dt-exp select{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:12px}
+.dt-meta input{width:100px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:13px}
+.dt-val{font-weight:600}
+.dt-val.pos{color:var(--pos)} .dt-val.neg{color:var(--neg)} .dt-val.zero,.dt-val-empty{color:var(--muted);font-weight:400}
+.dt-empty{padding:20px;text-align:center;color:var(--faint);font-family:var(--mono);font-size:13px}
+.dtable.collapsed .dtable-body{display:none}
+.dtable.collapsed .dt-arrow{transform:rotate(-90deg)}
+.dtable-toggle .dt-arrow{margin-left:auto;font-style:normal;transition:transform .2s;display:inline-block;font-size:14px}
+
+.app-tabs{display:flex;gap:8px;margin:22px 0 6px;border-bottom:1px solid var(--line)}
+.app-tab{font-family:var(--mono);font-size:13px;letter-spacing:.04em;font-weight:600;padding:11px 16px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s}
+.app-tab:hover{color:var(--ink)}
+.app-tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.tab-hidden{display:none!important}
 .toolbar{display:flex;gap:12px;margin:22px 0 6px;flex-wrap:wrap;align-items:center}
 .app-ver{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.06em}
 .btn{font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;padding:11px 18px;border-radius:9px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);transition:.15s}
@@ -225,6 +257,12 @@ datalist{display:none}
     <div class="upd-status" id="upd_status_fr"></div>
   </div>
 
+  <div class="app-tabs">
+    <button class="app-tab" data-tab="preco">Decisão de Preço</button>
+    <button class="app-tab" data-tab="desconto">Tabela de Desconto</button>
+  </div>
+
+  <div id="tab_preco">
   <div class="panel globals">
     <div class="glabel glob-toggle" id="glob_toggle">Parâmetros Globais <span class="glob-arrow">▾</span></div>
     <div class="gfields">
@@ -251,6 +289,35 @@ datalist{display:none}
     <span class="app-ver" id="app_ver"></span>
   </div>
   <button class="fab" id="fab_add" title="Adicionar Produto">+</button>
+  </div>
+
+  <div class="panel dtable" id="dtable_panel">
+    <div class="glabel dtable-toggle" id="dtable_toggle">Tabela de Desconto por Margem <span class="dt-arrow">▾</span></div>
+    <div class="dtable-body" id="dtable_body">
+      <p class="dtable-sub">Escolha o contexto (Fat/Embalagem) e a Meta de Margem Presumida de cada produto — o Desconto Comercial SF (AA) sai calculado na hora, por período. O Exp é detectado por produto (editável na linha, já que um mesmo Fat pode expedir produtos por Exp diferentes). Cada coluna usa automaticamente o Vencimento da Lista do próprio período (não usa o campo Validade dos Parâmetros Globais). Frete manual único (sem tabela de frete por cidade).</p>
+      <div class="gfields dtable-ctx">
+        <div class="field"><label>Fat</label><select id="dt_fat"></select></div>
+        <div class="field"><label>UF Exp <span style="color:var(--faint)">(opc)</span></label><select id="dt_ufExp"></select></div>
+        <div class="field"><label>Embalagem</label><select id="dt_emb"></select></div>
+        <div class="field"><label>Lista REP?</label><select id="dt_listaRep"></select></div>
+        <div class="field"><label>Frete manual <span style="color:var(--faint)">(opc, US$/ton)</span></label><input type="number" step="0.01" id="dt_frete" placeholder="0"></div>
+      </div>
+      <div class="dtable-addprod">
+        <input type="text" id="dt_addprod_input" list="dl_produto" placeholder="Buscar produto para adicionar à lista..." autocomplete="off">
+        <button class="btn" id="dt_addprod_btn">+ Adicionar produto</button>
+        <span class="upd-status" id="dt_addprod_status"></span>
+      </div>
+      <div class="dtable-actions">
+        <button class="btn" id="dt_addperiod">+ Período</button>
+        <button class="btn primary" id="dt_copy">Copiar tabela</button>
+        <button class="btn" id="dt_msg">Msg WhatsApp</button>
+        <span class="upd-status" id="dt_copy_status"></span>
+      </div>
+      <div class="dtable-wrap">
+        <table class="dtable-table" id="dtable_table"></table>
+      </div>
+    </div>
+  </div>
 
   <div class="modal-bg" id="modal_bg">
     <div class="modal">
@@ -519,7 +586,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v60';
+const APP_VER='v61';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -732,6 +799,7 @@ document.getElementById('rows').addEventListener('click',e=>{
     if(e.target.id===id){
       if(id==='g_validade') e.target.value=maskDateBR(e.target.value);
       toggleDDF();updatePeriodRef();rows.forEach(renderResult);
+      if(typeof dtRenderTable==='function') dtRenderTable();
     }
   });
 });
@@ -744,6 +812,7 @@ document.getElementById('g_validade').addEventListener('input',e=>{
 document.getElementById('g_validade').addEventListener('blur',e=>{
   e.target.value=maskDateBR(e.target.value);
   toggleDDF();updatePeriodRef();rows.forEach(renderResult);
+  if(typeof dtRenderTable==='function') dtRenderTable();
 });
 document.getElementById('g_validade_picker').addEventListener('focus',()=>{
   const iso=brToISO(document.getElementById('g_validade').value);
@@ -753,6 +822,7 @@ document.getElementById('g_validade_picker').addEventListener('change',e=>{
   const iso=e.target.value;
   if(iso){const[y,mo,d]=iso.split('-');document.getElementById('g_validade').value=`${d}/${mo}/${y}`;}
   toggleDDF();updatePeriodRef();rows.forEach(renderResult);
+  if(typeof dtRenderTable==='function') dtRenderTable();
 });
 function toggleDDF(){document.getElementById('ddf_wrap').style.display=document.getElementById('g_tipo').value==='DDF'?'flex':'none';}
 document.getElementById('add').addEventListener('click',addRow);
@@ -1003,7 +1073,7 @@ document.getElementById('file_base').addEventListener('change', async e=>{
     applyBase(b);
     BASEFNAME=file.name;
     const ok=saveBase(b,file.name);
-    refreshGlobals(); rows.forEach(renderResult);
+    refreshGlobals(); dtRefreshContext(); rows.forEach(renderResult);
     setBaseInfo(ok?Date.now():null);
     status.className='upd-status ok';
     status.textContent='✓ Base atualizada: '+Object.keys(b.precos).length.toLocaleString('pt-BR')+' preços'+(ok?' (salva neste navegador)':' (apenas nesta sessão — armazenamento bloqueado)');
@@ -1017,7 +1087,7 @@ document.getElementById('reset_base').addEventListener('click',()=>{
   try{localStorage.removeItem(LS_KEY);localStorage.removeItem(LS_META);}catch(e){}
   BASEFNAME='';
   applyBase(JSON.parse(JSON.stringify(DEFAULT_DATA)));
-  refreshGlobals(); rows.forEach(renderResult); setBaseInfo(null);
+  refreshGlobals(); dtRefreshContext(); rows.forEach(renderResult); setBaseInfo(null);
   document.getElementById('upd_status').className='upd-status';
   document.getElementById('upd_status').textContent='Base restaurada para a original embutida.';
 });
@@ -1123,14 +1193,215 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') hideProdDD(); });
 window.addEventListener('scroll',()=>{ if(activeProdInput&&!document.body.contains(activeProdInput)) hideProdDD(); },true);
 if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{ if(activeProdInput&&prodDD.classList.contains('open')) positionProdDD(activeProdInput); }); }
 
+// ---- Tabela de Desconto por Margem (painel novo, isolado do fluxo acima) ----
+const DT_KEY='simlp_dtmargins_v1';
+function dtLoadMargins(){ try{ return JSON.parse(localStorage.getItem(DT_KEY))||{}; }catch(e){ return {}; } }
+function dtSaveMargins(){ try{ localStorage.setItem(DT_KEY,JSON.stringify(dtMargins)); }catch(e){} }
+let dtMargins=dtLoadMargins();
+let dtPeriods=[];
+
+const DTPL_KEY='simlp_dtprodlist_v1';
+function dtLoadProdList(){
+  try{
+    const a=JSON.parse(localStorage.getItem(DTPL_KEY));
+    if(!Array.isArray(a)) return [];
+    // migra formato antigo (array de strings) para {produto,exp}
+    return a.map(x=> typeof x==='string' ? {produto:x, exp:''} : {produto:x.produto, exp:x.exp||''});
+  }catch(e){ return []; }
+}
+function dtSaveProdList(){ try{ localStorage.setItem(DTPL_KEY,JSON.stringify(dtProdList)); }catch(e){} }
+let dtProdList=dtLoadProdList();
+
+// um mesmo Fat pode expedir o mesmo produto por Exp diferentes (ex: PNG->ROCHA e PNG->COO);
+// detecta automaticamente qual Exp tem preço pra esse produto, a menos que o usuário tenha escolhido manualmente
+function dtDetectExp(produto,ctx,g){
+  const candidates=DD.exp.filter(e=>DD.periodo.some(per=>!!PR[[per,ctx.fat,e,produto,ctx.emb,g.moeda].join('-')]));
+  return candidates[0]||DD.exp[0]||'';
+}
+function dtEffectiveExp(entry,ctx,g){ return entry.exp ? entry.exp : dtDetectExp(entry.produto,ctx,g); }
+
+function dtGetCtx(){
+  return {
+    fat:document.getElementById('dt_fat').value,
+    ufExp:document.getElementById('dt_ufExp').value,
+    emb:document.getElementById('dt_emb').value,
+    listaRep:document.getElementById('dt_listaRep').value,
+    frete:document.getElementById('dt_frete').value,
+  };
+}
+
+function dtRefreshContext(){
+  const fatEl=document.getElementById('dt_fat'); if(!fatEl) return;
+  const keep=id=>document.getElementById(id).value;
+  fillSelect('dt_fat',DD.fat, DD.fat.includes(keep('dt_fat'))?keep('dt_fat'):DD.fat[0]);
+  document.getElementById('dt_ufExp').innerHTML='<option value="">(usa UF Fat)</option>'+opt(DD.ufExp,keep('dt_ufExp'));
+  fillSelect('dt_emb',DD.emb, DD.emb.includes(keep('dt_emb'))?keep('dt_emb'):(DD.emb[1]||DD.emb[0]));
+  fillSelect('dt_listaRep',DD.listaRep, DD.listaRep.includes(keep('dt_listaRep'))?keep('dt_listaRep'):'NÃO');
+  dtPeriods=dtPeriods.filter(p=>DD.periodo.includes(p));
+  if(dtPeriods.length===0){ const g=getGlobals(); dtPeriods=[DD.periodo.includes(g.periodo)?g.periodo:DD.periodo[0]]; }
+  dtRenderTable();
+}
+
+function dtRowValue(prod,per,ctx,g){
+  const marginVal=dtMargins[prod];
+  if(marginVal===undefined||marginVal===''||Number.isNaN(+marginVal)) return {cls:'dt-val-empty',txt:'—'};
+  const key=[per,ctx.fat,ctx.exp,prod,ctx.emb,g.moeda].join('-');
+  if(!PR[key]) return {cls:'dt-val-empty',txt:'sem preço'};
+  const row={fat:ctx.fat,exp:ctx.exp,ufExp:ctx.ufExp,emb:ctx.emb,listaRep:ctx.listaRep,frete:ctx.frete,cidade:'',produto:prod};
+  // cada período usa o próprio Vencimento da Lista como validade (Data Fixa), não o campo Validade dos Parâmetros Globais
+  const perInfo=PER[per];
+  const gg={periodo:per, moeda:g.moeda, dolar:g.dolar, tipo:'Data Fixa', validade:(perInfo?perInfo.B4:''), ddf:''};
+  const sol=solvePrice(gg,row,+marginVal,'','');
+  if(sol.err) return {cls:'dt-val-empty',txt:'—'};
+  return {cls:cls(sol.fwd.AA),txt:fmt(sol.fwd.AA,'US$ '),val:sol.fwd.AA};
+}
+
+function dtRenderTable(){
+  const host=document.getElementById('dtable_table'); if(!host) return;
+  const g=getGlobals(); const ctx=dtGetCtx();
+  if(!ctx.fat||!ctx.emb||dtPeriods.length===0){ host.innerHTML='<tr><td class="dt-empty">Selecione Fat e Embalagem.</td></tr>'; return; }
+  if(dtProdList.length===0){ host.innerHTML='<tr><td class="dt-empty">Nenhum produto na lista. Use o campo acima para adicionar.</td></tr>'; return; }
+  const thead=`<thead><tr>
+      <th class="dt-prod">Produto</th>
+      <th class="dt-exp">Exp</th>
+      <th class="dt-meta">Meta Margem<br>Presumida (US$)</th>
+      ${dtPeriods.map((p,i)=>`<th class="dt-per"><select data-dtper="${i}">${opt(DD.periodo,p)}</select>${dtPeriods.length>1?`<button type="button" class="dt-rm-col" data-dtrmcol="${i}" title="Remover coluna">×</button>`:''}</th>`).join('')}
+    </tr></thead>`;
+  const tbody=dtProdList.map(entry=>{
+    const prod=entry.produto;
+    const effExp=dtEffectiveExp(entry,ctx,g);
+    const rowCtx=Object.assign({},ctx,{exp:effExp});
+    const mv=dtMargins[prod]!==undefined?dtMargins[prod]:'';
+    const cells=dtPeriods.map(per=>{ const v=dtRowValue(prod,per,rowCtx,g); return `<td class="dt-val ${v.cls}">${v.txt}</td>`; }).join('');
+    return `<tr data-dtprod="${prod.replace(/"/g,'&quot;')}"><td class="dt-prod">${prod}<button type="button" class="dt-rm-prod" data-dtrmprod="${prod.replace(/"/g,'&quot;')}" title="Remover produto da lista">×</button></td><td class="dt-exp"><select data-dtexp="${prod.replace(/"/g,'&quot;')}">${opt(DD.exp,effExp)}</select></td><td class="dt-meta"><input type="number" step="0.01" data-dtmargin="${prod.replace(/"/g,'&quot;')}" value="${mv}" placeholder="opcional"></td>${cells}</tr>`;
+  }).join('');
+  host.innerHTML=thead+'<tbody>'+tbody+'</tbody>';
+}
+
+function dtUpdateRow(tr,prod){
+  const g=getGlobals(); const ctx=dtGetCtx();
+  const entry=dtProdList.find(p=>p.produto===prod); if(!entry) return;
+  const effExp=dtEffectiveExp(entry,ctx,g);
+  const rowCtx=Object.assign({},ctx,{exp:effExp});
+  const cells=tr.querySelectorAll('.dt-val');
+  dtPeriods.forEach((per,i)=>{
+    const td=cells[i]; if(!td) return;
+    const v=dtRowValue(prod,per,rowCtx,g);
+    td.className='dt-val '+v.cls; td.textContent=v.txt;
+  });
+}
+
+document.getElementById('dtable_toggle').addEventListener('click',()=>{
+  document.getElementById('dtable_panel').classList.toggle('collapsed');
+});
+document.querySelector('.dtable-ctx').addEventListener('input',dtRenderTable);
+document.querySelector('.dtable-ctx').addEventListener('change',dtRenderTable);
+document.getElementById('dt_addperiod').addEventListener('click',()=>{
+  const unused=DD.periodo.find(p=>!dtPeriods.includes(p));
+  if(!unused) return;
+  dtPeriods.push(unused); dtRenderTable();
+});
+document.getElementById('dtable_table').addEventListener('input',e=>{
+  const prod=e.target.dataset.dtmargin;
+  if(prod!==undefined){
+    const v=e.target.value;
+    if(v==='') delete dtMargins[prod]; else dtMargins[prod]=v;
+    dtSaveMargins();
+    dtUpdateRow(e.target.closest('tr'),prod);
+  }
+});
+document.getElementById('dtable_table').addEventListener('change',e=>{
+  const idx=e.target.dataset.dtper;
+  if(idx!==undefined){ dtPeriods[+idx]=e.target.value; dtRenderTable(); return; }
+  const expProd=e.target.dataset.dtexp;
+  if(expProd!==undefined){
+    const entry=dtProdList.find(p=>p.produto===expProd);
+    if(entry){ entry.exp=e.target.value; dtSaveProdList(); dtUpdateRow(e.target.closest('tr'),expProd); }
+  }
+});
+document.getElementById('dtable_table').addEventListener('click',e=>{
+  const rm=e.target.closest('[data-dtrmcol]');
+  if(rm){ const idx=+rm.dataset.dtrmcol; if(dtPeriods.length>1){ dtPeriods.splice(idx,1); dtRenderTable(); } return; }
+  const rmp=e.target.closest('[data-dtrmprod]');
+  if(rmp){ const prod=rmp.dataset.dtrmprod; dtProdList=dtProdList.filter(p=>p.produto!==prod); dtSaveProdList(); dtRenderTable(); }
+});
+function dtAddProduto(){
+  const input=document.getElementById('dt_addprod_input');
+  const status=document.getElementById('dt_addprod_status');
+  const val=input.value.trim();
+  if(!val) return;
+  if(!DD.produto.includes(val)){ status.className='upd-status err'; status.textContent='✗ Produto não encontrado na base carregada.'; return; }
+  if(dtProdList.some(p=>p.produto===val)){ status.className='upd-status err'; status.textContent='Produto já está na lista.'; input.value=''; return; }
+  dtProdList.push({produto:val, exp:''}); dtSaveProdList();
+  input.value=''; status.className='upd-status ok'; status.textContent='✓ Adicionado.';
+  dtRenderTable();
+}
+document.getElementById('dt_addprod_btn').addEventListener('click',dtAddProduto);
+document.getElementById('dt_addprod_input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); dtAddProduto(); }
+});
+document.getElementById('dt_copy').addEventListener('click',async ()=>{
+  const status=document.getElementById('dt_copy_status');
+  const g=getGlobals(); const ctx=dtGetCtx();
+  if(dtProdList.length===0){ status.className='upd-status err'; status.textContent='Nada para copiar.'; return; }
+  const lines=['Produto\tExp\tMeta Margem Presumida\t'+dtPeriods.join('\t')];
+  dtProdList.forEach(entry=>{
+    const prod=entry.produto;
+    const effExp=dtEffectiveExp(entry,ctx,g);
+    const rowCtx=Object.assign({},ctx,{exp:effExp});
+    const mv=dtMargins[prod]!==undefined?dtMargins[prod]:'';
+    const vals=dtPeriods.map(per=>dtRowValue(prod,per,rowCtx,g).txt);
+    lines.push([prod,effExp,mv,...vals].join('\t'));
+  });
+  const txt=lines.join('\n');
+  try{ await navigator.clipboard.writeText(txt); status.className='upd-status ok'; status.textContent='✓ Tabela copiada. Cole no Excel/WhatsApp.'; }
+  catch(e){ status.className='upd-status err'; status.textContent='Não foi possível copiar automaticamente.'; }
+});
+function dtBuildMessage(){
+  const g=getGlobals(); const ctx=dtGetCtx();
+  if(dtProdList.length===0) return '';
+  const shortPer=p=>String(p).replace(/_\d{4}$/,'');
+  const head='*Desconto da Semana*\n_'+dtPeriods.map(shortPer).join(' x ')+'_';
+  const blocks=dtProdList.map(entry=>{
+    const prod=entry.produto;
+    const effExp=dtEffectiveExp(entry,ctx,g);
+    const rowCtx=Object.assign({},ctx,{exp:effExp});
+    const lines=dtPeriods.map(per=>{
+      const v=dtRowValue(prod,per,rowCtx,g);
+      const txt=(v.val==null||Number.isNaN(v.val))?v.txt:('$'+Math.round(v.val).toLocaleString('pt-BR'));
+      return shortPer(per)+': '+txt;
+    });
+    return '*'+prod+'*\n'+lines.join('\n');
+  });
+  return head+'\n\n'+blocks.join('\n\n');
+}
+document.getElementById('dt_msg').addEventListener('click',()=>{
+  const txt=dtBuildMessage();
+  const hint=document.getElementById('msg_hint');
+  document.getElementById('msg_title').textContent='Desconto por Margem — mensagem';
+  if(!txt){ hint.className='msg-hint'; document.getElementById('msg_text').value=''; hint.textContent='Nenhum produto na lista.'; }
+  else { document.getElementById('msg_text').value=txt; hint.className='msg-hint'; hint.textContent='Confira o texto e use "Copiar" ou "Abrir no WhatsApp".'; }
+  document.getElementById('modal_bg').classList.add('open');
+});
+
+// ---- Tabs (Decisão de Preço / Tabela de Desconto) ----
+function showAppTab(tab){
+  document.getElementById('tab_preco').classList.toggle('tab-hidden', tab!=='preco');
+  document.getElementById('dtable_panel').classList.toggle('tab-hidden', tab!=='desconto');
+  document.querySelectorAll('.app-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+}
+document.querySelectorAll('.app-tab').forEach(b=>b.addEventListener('click',()=>showAppTab(b.dataset.tab)));
+
 // init
 const saved=loadSavedBase();
 if(saved&&saved.base&&saved.base.precos){ applyBase(saved.base); } else { applyBase(DEFAULT_DATA); }
 refreshGlobals();
+dtRefreshContext();
 if(saved&&saved.fname) BASEFNAME=saved.fname;
 setBaseInfo(saved?saved.when:null);
 setFreightInfo();
 addRow();
+showAppTab('preco');
 document.getElementById('app_ver').textContent=APP_VER;
 
 // carrega frete salvo (IndexedDB) de forma assíncrona

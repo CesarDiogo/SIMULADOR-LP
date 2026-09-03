@@ -409,7 +409,7 @@ function extractBase(wb){
       if(s!==''&&!out.includes(s)) out.push(s); }
     return out; };
   const dd={ periodo:col(8,2), fat:col(1,2), exp:col(0,2), ufExp:col(4,2), produto:col(6,2), emb:col(22,2), listaRep:col(24,2), moeda:col(28,2), tipoPgto:col(30,2), i4:col(26,2) };
-  if(Object.keys(precos).length<500) throw new Error('Poucos preços lidos ('+Object.keys(precos).length+'). Verifique se é o arquivo correto.');
+  if(Object.keys(precos).length<50) throw new Error('Poucos preços lidos ('+Object.keys(precos).length+'). Verifique se é o arquivo correto.');
   return {precos,icms,periodo:per,fatUF,dd};
 }
 
@@ -586,7 +586,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v61';
+const APP_VER='v62';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}

@@ -166,6 +166,8 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .dt-meta input{width:100px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:13px}
 .dt-val{font-weight:600}
 .dt-val.pos{color:var(--pos)} .dt-val.neg{color:var(--neg)} .dt-val.zero,.dt-val-empty{color:var(--muted);font-weight:400}
+.dt-pl{display:block;font-size:10.5px;color:var(--faint);font-weight:400;margin-top:2px}
+.dt-per-sub{font-size:9px;color:var(--faint);text-transform:none;letter-spacing:0;margin-top:3px;font-weight:400}
 .dt-empty{padding:20px;text-align:center;color:var(--faint);font-family:var(--mono);font-size:13px}
 .dtable.collapsed .dtable-body{display:none}
 .dtable.collapsed .dt-arrow{transform:rotate(-90deg)}
@@ -586,7 +588,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v62';
+const APP_VER='v63';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1253,7 +1255,7 @@ function dtRowValue(prod,per,ctx,g){
   const gg={periodo:per, moeda:g.moeda, dolar:g.dolar, tipo:'Data Fixa', validade:(perInfo?perInfo.B4:''), ddf:''};
   const sol=solvePrice(gg,row,+marginVal,'','');
   if(sol.err) return {cls:'dt-val-empty',txt:'—'};
-  return {cls:cls(sol.fwd.AA),txt:fmt(sol.fwd.AA,'US$ '),val:sol.fwd.AA};
+  return {cls:cls(sol.fwd.AA),txt:fmt(sol.fwd.AA,'US$ '),val:sol.fwd.AA,aiVal:sol.fwd.AI,aiTxt:fmt(sol.fwd.AI,'US$ ')};
 }
 
 function dtRenderTable(){
@@ -1265,18 +1267,20 @@ function dtRenderTable(){
       <th class="dt-prod">Produto</th>
       <th class="dt-exp">Exp</th>
       <th class="dt-meta">Meta Margem<br>Presumida (US$)</th>
-      ${dtPeriods.map((p,i)=>`<th class="dt-per"><select data-dtper="${i}">${opt(DD.periodo,p)}</select>${dtPeriods.length>1?`<button type="button" class="dt-rm-col" data-dtrmcol="${i}" title="Remover coluna">×</button>`:''}</th>`).join('')}
+      ${dtPeriods.map((p,i)=>`<th class="dt-per"><select data-dtper="${i}">${opt(DD.periodo,p)}</select>${dtPeriods.length>1?`<button type="button" class="dt-rm-col" data-dtrmcol="${i}" title="Remover coluna">×</button>`:''}<div class="dt-per-sub">Desconto · P&amp;L</div></th>`).join('')}
     </tr></thead>`;
   const tbody=dtProdList.map(entry=>{
     const prod=entry.produto;
     const effExp=dtEffectiveExp(entry,ctx,g);
     const rowCtx=Object.assign({},ctx,{exp:effExp});
     const mv=dtMargins[prod]!==undefined?dtMargins[prod]:'';
-    const cells=dtPeriods.map(per=>{ const v=dtRowValue(prod,per,rowCtx,g); return `<td class="dt-val ${v.cls}">${v.txt}</td>`; }).join('');
+    const cells=dtPeriods.map(per=>{ const v=dtRowValue(prod,per,rowCtx,g); return `<td class="dt-val ${v.cls}">${dtCellHtml(v)}</td>`; }).join('');
     return `<tr data-dtprod="${prod.replace(/"/g,'&quot;')}"><td class="dt-prod">${prod}<button type="button" class="dt-rm-prod" data-dtrmprod="${prod.replace(/"/g,'&quot;')}" title="Remover produto da lista">×</button></td><td class="dt-exp"><select data-dtexp="${prod.replace(/"/g,'&quot;')}">${opt(DD.exp,effExp)}</select></td><td class="dt-meta"><input type="number" step="0.01" data-dtmargin="${prod.replace(/"/g,'&quot;')}" value="${mv}" placeholder="opcional"></td>${cells}</tr>`;
   }).join('');
   host.innerHTML=thead+'<tbody>'+tbody+'</tbody>';
 }
+
+function dtCellHtml(v){ return v.txt + (v.aiTxt? `<span class="dt-pl">P&amp;L ${v.aiTxt}</span>` : ''); }
 
 function dtUpdateRow(tr,prod){
   const g=getGlobals(); const ctx=dtGetCtx();
@@ -1287,7 +1291,7 @@ function dtUpdateRow(tr,prod){
   dtPeriods.forEach((per,i)=>{
     const td=cells[i]; if(!td) return;
     const v=dtRowValue(prod,per,rowCtx,g);
-    td.className='dt-val '+v.cls; td.textContent=v.txt;
+    td.className='dt-val '+v.cls; td.innerHTML=dtCellHtml(v);
   });
 }
 
@@ -1344,13 +1348,13 @@ document.getElementById('dt_copy').addEventListener('click',async ()=>{
   const status=document.getElementById('dt_copy_status');
   const g=getGlobals(); const ctx=dtGetCtx();
   if(dtProdList.length===0){ status.className='upd-status err'; status.textContent='Nada para copiar.'; return; }
-  const lines=['Produto\tExp\tMeta Margem Presumida\t'+dtPeriods.join('\t')];
+  const lines=['Produto\tExp\tMeta Margem Presumida\t'+dtPeriods.flatMap(p=>[p+' Desconto',p+' P&L']).join('\t')];
   dtProdList.forEach(entry=>{
     const prod=entry.produto;
     const effExp=dtEffectiveExp(entry,ctx,g);
     const rowCtx=Object.assign({},ctx,{exp:effExp});
     const mv=dtMargins[prod]!==undefined?dtMargins[prod]:'';
-    const vals=dtPeriods.map(per=>dtRowValue(prod,per,rowCtx,g).txt);
+    const vals=dtPeriods.flatMap(per=>{ const v=dtRowValue(prod,per,rowCtx,g); return [v.txt, v.aiTxt||'']; });
     lines.push([prod,effExp,mv,...vals].join('\t'));
   });
   const txt=lines.join('\n');

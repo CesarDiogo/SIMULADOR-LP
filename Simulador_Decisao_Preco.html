@@ -588,7 +588,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v63';
+const APP_VER='v64';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -889,8 +889,7 @@ function buildMessage(interna){
   // FOB agrupado por faturamento (origem); UF de destino na linha
   const fobG={}; qs.filter(q=>q.cond==='FOB').forEach(q=>{ const k=q.origem; (fobG[k]=fobG[k]||[]).push(q); });
   Object.keys(fobG).forEach(o=>{ blocos.push('*FOB*- '+o+'\n'+fobG[o].map(q=>'* *'+q.produto+'*: '+q.valor+(q.uf?(' — '+q.uf):'')+extra(q)).join('\n')); });
-  const foot = interna ? '\n\n_Uso interno — não enviar ao cliente._' : '';
-  return head.join('\n')+'\n\n'+blocos.join('\n')+foot;
+  return head.join('\n')+'\n\n'+blocos.join('\n');
 }
 function openMsg(interna){
   const txt=buildMessage(interna);

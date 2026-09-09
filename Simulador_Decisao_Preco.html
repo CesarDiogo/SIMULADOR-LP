@@ -614,7 +614,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v67';
+const APP_VER='v68';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1284,7 +1284,7 @@ function dtRowValue(prod,per,ctx,g){
   const gg={periodo:per, moeda:ctx.moeda, dolar:g.dolar, tipo:'Data Fixa', validade:(perInfo?perInfo.B4:''), ddf:''};
   const sol=solvePrice(gg,row,+marginVal,'','');
   if(sol.err) return {cls:'dt-val-empty',txt:'—'};
-  return {cls:cls(sol.fwd.AA),txt:fmt(sol.fwd.AA,'US$ '),val:sol.fwd.AA,aiVal:sol.fwd.AI,aiTxt:fmt(sol.fwd.AI,'US$ ')};
+  return {cls:cls(sol.fwd.AA),txt:fmt(sol.fwd.AA,'US$ '),val:sol.fwd.AA,aiVal:sol.fwd.AI,aiTxt:fmt(sol.fwd.AI,'US$ '),priceVal:sol.price,priceTxt:fmt(sol.price,'US$ ')};
 }
 
 function dtRenderTable(){
@@ -1309,7 +1309,11 @@ function dtRenderTable(){
   host.innerHTML=thead+'<tbody>'+tbody+'</tbody>';
 }
 
-function dtCellHtml(v){ return v.txt + (v.aiTxt? `<span class="dt-pl">P&amp;L ${v.aiTxt}</span>` : ''); }
+function dtCellHtml(v){
+  return v.txt
+    + (v.aiTxt? `<span class="dt-pl">P&amp;L ${v.aiTxt}</span>` : '')
+    + (v.priceTxt? `<span class="dt-pl">Preço ${v.priceTxt}</span>` : '');
+}
 
 function dtUpdateRow(tr,prod){
   const g=getGlobals(); const ctx=dtGetCtx();
@@ -1384,13 +1388,13 @@ document.getElementById('dt_copy').addEventListener('click',async ()=>{
   const status=document.getElementById('dt_copy_status');
   const g=getGlobals(); const ctx=dtGetCtx();
   if(dtProdList.length===0){ status.className='upd-status err'; status.textContent='Nada para copiar.'; return; }
-  const lines=['Produto\tExp\tMeta Margem Presumida\t'+dtPeriods.flatMap(p=>[p+' Desconto',p+' P&L']).join('\t')];
+  const lines=['Produto\tExp\tMeta Margem Presumida\t'+dtPeriods.flatMap(p=>[p+' Desconto',p+' P&L',p+' Preço']).join('\t')];
   dtProdList.forEach(entry=>{
     const prod=entry.produto;
     const effExp=dtEffectiveExp(entry,ctx,g);
     const rowCtx=Object.assign({},ctx,{exp:effExp});
     const mv=dtMargins[prod]!==undefined?dtMargins[prod]:'';
-    const vals=dtPeriods.flatMap(per=>{ const v=dtRowValue(prod,per,rowCtx,g); return [v.txt, v.aiTxt||'']; });
+    const vals=dtPeriods.flatMap(per=>{ const v=dtRowValue(prod,per,rowCtx,g); return [v.txt, v.aiTxt||'', v.priceTxt||'']; });
     lines.push([prod,effExp,mv,...vals].join('\t'));
   });
   const txt=lines.join('\n');

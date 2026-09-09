@@ -309,7 +309,7 @@ datalist{display:none}
         <div class="field"><label>Frete manual <span style="color:var(--faint)">(opc, US$/ton)</span></label><input type="number" step="0.01" id="dt_frete" placeholder="0"></div>
       </div>
       <div class="dtable-addprod">
-        <input type="text" id="dt_addprod_input" list="dl_produto" placeholder="Buscar produto para adicionar à lista..." autocomplete="off">
+        <input type="text" id="dt_addprod_input" placeholder="Buscar produto para adicionar à lista..." autocomplete="off">
         <button class="btn" id="dt_addprod_btn">+ Adicionar produto</button>
         <span class="upd-status" id="dt_addprod_status"></span>
       </div>
@@ -613,7 +613,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v65';
+const APP_VER='v66';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1215,7 +1215,7 @@ rowsEl.addEventListener('input',e=>{
   }
 });
 prodDD.addEventListener('mousedown',e=>{ const opt=e.target.closest('.opt'); if(!opt||!activeProdInput) return; e.preventDefault(); const inp=activeProdInput; inp.value=opt.dataset.val; inp.dispatchEvent(new Event('input',{bubbles:true})); hideProdDD(); });
-document.addEventListener('click',e=>{ if(prodDD.contains(e.target)) return; if(e.target.dataset && e.target.dataset.f==='produto') return; hideProdDD(); });
+document.addEventListener('click',e=>{ if(prodDD.contains(e.target)) return; if(e.target===activeProdInput) return; hideProdDD(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') hideProdDD(); });
 window.addEventListener('scroll',()=>{ if(activeProdInput&&!document.body.contains(activeProdInput)) hideProdDD(); },true);
 if(window.visualViewport){ window.visualViewport.addEventListener('resize',()=>{ if(activeProdInput&&prodDD.classList.contains('open')) positionProdDD(activeProdInput); }); }
@@ -1368,6 +1368,13 @@ function dtAddProduto(){
 document.getElementById('dt_addprod_btn').addEventListener('click',dtAddProduto);
 document.getElementById('dt_addprod_input').addEventListener('keydown',e=>{
   if(e.key==='Enter'){ e.preventDefault(); dtAddProduto(); }
+});
+document.getElementById('dt_addprod_input').addEventListener('focusin',e=>{
+  activeProdInput=e.target; buildProdDDContent(e.target); openProdDD(e.target);
+});
+document.getElementById('dt_addprod_input').addEventListener('input',e=>{
+  buildProdDDContent(e.target);
+  if(!prodDD.classList.contains('open')) openProdDD(e.target);
 });
 document.getElementById('dt_copy').addEventListener('click',async ()=>{
   const status=document.getElementById('dt_copy_status');

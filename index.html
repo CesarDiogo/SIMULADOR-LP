@@ -167,7 +167,10 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .dt-val{font-weight:600}
 .dt-val.pos{color:var(--pos)} .dt-val.neg{color:var(--neg)} .dt-val.zero,.dt-val-empty{color:var(--muted);font-weight:400}
 .dt-pl{display:block;font-size:10.5px;color:var(--faint);font-weight:400;margin-top:2px}
+.dt-pl.pos{color:var(--pos)} .dt-pl.neg{color:var(--neg)} .dt-pl.zero{color:var(--faint)}
 .dt-per-sub{font-size:9px;color:var(--faint);text-transform:none;letter-spacing:0;margin-top:3px;font-weight:400}
+.vl-table th.vl-fat{text-align:center;border-left:2px solid var(--line);font-size:11px}
+.vl-table th.vl-per{font-size:9px;color:var(--faint);font-weight:400;padding:4px 8px;text-align:center;border-left:1px solid var(--line)}
 .dt-empty{padding:20px;text-align:center;color:var(--faint);font-family:var(--mono);font-size:13px}
 .dtable.collapsed .dtable-body{display:none}
 .dtable.collapsed .dt-arrow{transform:rotate(-90deg)}
@@ -262,6 +265,7 @@ datalist{display:none}
   <div class="app-tabs">
     <button class="app-tab" data-tab="preco">Decisão de Preço</button>
     <button class="app-tab" data-tab="desconto">Tabela de Desconto</button>
+    <button class="app-tab" data-tab="variacao">Variação de Lista</button>
   </div>
 
   <div id="tab_preco">
@@ -317,6 +321,27 @@ datalist{display:none}
       </div>
       <div class="dtable-wrap">
         <table class="dtable-table" id="dtable_table"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel dtable" id="vl_panel">
+    <div class="glabel dtable-toggle" id="vl_toggle">Variação de Lista <span class="dt-arrow">▾</span></div>
+    <div class="dtable-body" id="vl_body">
+      <p class="dtable-sub">Acompanha o Preço de Lista de PNG, UBA, SLZ e ROO, em todos os períodos disponíveis, para os produtos que você adicionar abaixo (lista fixa, igual à da Tabela de Desconto). A cada nova planilha carregada, compara com a lista anterior e mostra quanto subiu ou desceu.</p>
+      <div class="gfields dtable-ctx">
+        <div class="field"><label>Embalagem</label><select id="vl_emb"></select></div>
+      </div>
+      <div class="dtable-addprod">
+        <input type="text" id="vl_addprod_input" list="dl_produto" placeholder="Buscar produto para adicionar à lista..." autocomplete="off">
+        <button class="btn" id="vl_addprod_btn">+ Adicionar produto</button>
+        <span class="upd-status" id="vl_addprod_status"></span>
+      </div>
+      <div class="dtable-actions">
+        <span class="upd-status" id="vl_baseline_info"></span>
+      </div>
+      <div class="dtable-wrap">
+        <table class="dtable-table vl-table" id="vl_table"></table>
       </div>
     </div>
   </div>
@@ -588,7 +613,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v64';
+const APP_VER='v65';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1071,10 +1096,11 @@ document.getElementById('file_base').addEventListener('change', async e=>{
     const buf=await file.arrayBuffer();
     const wb=XLSX.read(buf,{type:'array',raw:true});
     const b=extractBase(wb);
+    vlCaptureBaseline();
     applyBase(b);
     BASEFNAME=file.name;
     const ok=saveBase(b,file.name);
-    refreshGlobals(); dtRefreshContext(); rows.forEach(renderResult);
+    refreshGlobals(); dtRefreshContext(); vlRefreshContext(); rows.forEach(renderResult);
     setBaseInfo(ok?Date.now():null);
     status.className='upd-status ok';
     status.textContent='✓ Base atualizada: '+Object.keys(b.precos).length.toLocaleString('pt-BR')+' preços'+(ok?' (salva neste navegador)':' (apenas nesta sessão — armazenamento bloqueado)');
@@ -1088,7 +1114,7 @@ document.getElementById('reset_base').addEventListener('click',()=>{
   try{localStorage.removeItem(LS_KEY);localStorage.removeItem(LS_META);}catch(e){}
   BASEFNAME='';
   applyBase(JSON.parse(JSON.stringify(DEFAULT_DATA)));
-  refreshGlobals(); dtRefreshContext(); rows.forEach(renderResult); setBaseInfo(null);
+  refreshGlobals(); dtRefreshContext(); vlRefreshContext(); rows.forEach(renderResult); setBaseInfo(null);
   document.getElementById('upd_status').className='upd-status';
   document.getElementById('upd_status').textContent='Base restaurada para a original embutida.';
 });
@@ -1387,20 +1413,128 @@ document.getElementById('dt_msg').addEventListener('click',()=>{
   document.getElementById('modal_bg').classList.add('open');
 });
 
-// ---- Tabs (Decisão de Preço / Tabela de Desconto) ----
+// ---- Tabs (Decisão de Preço / Tabela de Desconto / Variação de Lista) ----
 function showAppTab(tab){
   document.getElementById('tab_preco').classList.toggle('tab-hidden', tab!=='preco');
   document.getElementById('dtable_panel').classList.toggle('tab-hidden', tab!=='desconto');
+  document.getElementById('vl_panel').classList.toggle('tab-hidden', tab!=='variacao');
   document.querySelectorAll('.app-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
 }
 document.querySelectorAll('.app-tab').forEach(b=>b.addEventListener('click',()=>showAppTab(b.dataset.tab)));
 
+// ---- Variação de Lista (painel novo, isolado do resto) ----
+const VL_FATS=['PNG','UBA','SLZ','ROO'];
+const VL_PL_KEY='simlp_vlprodlist_v1';
+function vlLoadProdList(){ try{ const a=JSON.parse(localStorage.getItem(VL_PL_KEY)); return Array.isArray(a)?a.map(x=>typeof x==='string'?{produto:x}:{produto:x.produto}):[]; }catch(e){ return []; } }
+function vlSaveProdList(){ try{ localStorage.setItem(VL_PL_KEY,JSON.stringify(vlProdList)); }catch(e){} }
+let vlProdList=vlLoadProdList();
+
+const VL_BASELINE_KEY='simlp_vlbaseline_v1';
+function vlLoadBaseline(){ try{ return JSON.parse(localStorage.getItem(VL_BASELINE_KEY)); }catch(e){ return null; } }
+function vlSaveBaseline(){ try{ localStorage.setItem(VL_BASELINE_KEY,JSON.stringify(vlBaseline)); }catch(e){} }
+let vlBaseline=vlLoadBaseline();
+
+function vlGetCtx(){ return { emb: (document.getElementById('vl_emb')||{}).value||'' }; }
+
+// mesmo produto pode ser expedido por Exp diferentes conforme o Fat; detecta automaticamente
+function vlDetectExp(produto,fat,emb,moeda){
+  const candidates=DD.exp.filter(e=>DD.periodo.some(per=>!!PR[[per,fat,e,produto,emb,moeda].join('-')]));
+  return candidates[0]||'';
+}
+function vlGetB(produto,fat,periodo,emb,moeda){
+  const exp=vlDetectExp(produto,fat,emb,moeda);
+  if(!exp) return null;
+  const key=[periodo,fat,exp,produto,emb,moeda].join('-');
+  const p=PR[key];
+  return (p && p[4]!=null) ? p[4] : null; // índice 4 = Preço de Lista (Y_pr / B)
+}
+function vlComputeLiveValues(){
+  const g=getGlobals(); const ctx=vlGetCtx();
+  const values={};
+  const periods=DD.periodo||[];
+  vlProdList.forEach(entry=>{
+    const prod=entry.produto;
+    VL_FATS.forEach(fat=>{
+      periods.forEach(per=>{ values[fat+'|'+per+'|'+prod]=vlGetB(prod,fat,per,ctx.emb,g.moeda); });
+    });
+  });
+  return {when:Date.now(), fname:BASEFNAME, emb:ctx.emb, moeda:g.moeda, values};
+}
+function vlCaptureBaseline(){ vlBaseline=vlComputeLiveValues(); vlSaveBaseline(); }
+
+function vlCellHtml(s1,s0){
+  if(s1==null) return `<td class="dt-val dt-val-empty">sem preço</td>`;
+  const main=fmt(s1,'US$ ');
+  let deltaHtml='';
+  if(s0!=null){
+    const d=s1-s0;
+    deltaHtml=`<span class="dt-pl ${cls(d)}">Δ ${d>0?'+':''}${nfmt(d)}</span>`;
+  }
+  return `<td class="dt-val">${main}${deltaHtml}</td>`;
+}
+function vlRenderTable(){
+  const host=document.getElementById('vl_table'); if(!host) return;
+  if(vlProdList.length===0){ host.innerHTML='<tr><td class="dt-empty">Nenhum produto na lista. Use o campo acima para adicionar.</td></tr>'; vlSetBaselineInfo(); return; }
+  const periods=DD.periodo||[];
+  if(periods.length===0){ host.innerHTML='<tr><td class="dt-empty">Base sem períodos.</td></tr>'; vlSetBaselineInfo(); return; }
+  const live=vlComputeLiveValues();
+  const baseVals=vlBaseline?vlBaseline.values:{};
+  const row1=`<tr><th class="dt-prod" rowspan="2">Produto</th>`+VL_FATS.map(fat=>`<th class="vl-fat" colspan="${periods.length}">${fat}</th>`).join('')+`</tr>`;
+  const row2=`<tr>`+VL_FATS.map(()=>periods.map(p=>`<th class="vl-per">${p}</th>`).join('')).join('')+`</tr>`;
+  const thead=`<thead>${row1}${row2}</thead>`;
+  const tbody=vlProdList.map(entry=>{
+    const prod=entry.produto;
+    const cells=VL_FATS.map(fat=>periods.map(per=>vlCellHtml(live.values[fat+'|'+per+'|'+prod], baseVals[fat+'|'+per+'|'+prod])).join('')).join('');
+    return `<tr data-vlprod="${prod.replace(/"/g,'&quot;')}"><td class="dt-prod">${prod}<button type="button" class="dt-rm-prod" data-vlrmprod="${prod.replace(/"/g,'&quot;')}" title="Remover produto da lista">×</button></td>${cells}</tr>`;
+  }).join('');
+  host.innerHTML=thead+'<tbody>'+tbody+'</tbody>';
+  vlSetBaselineInfo();
+}
+function vlSetBaselineInfo(){
+  const info=document.getElementById('vl_baseline_info'); if(!info) return;
+  info.className='upd-status';
+  info.textContent = vlBaseline
+    ? ('Comparando com: '+(vlBaseline.fname||'lista anterior')+' · '+new Date(vlBaseline.when).toLocaleString('pt-BR'))
+    : 'Ainda sem comparação — suba uma nova lista de preços pra ver a variação.';
+}
+function vlRefreshContext(){
+  const embEl=document.getElementById('vl_emb'); if(!embEl) return;
+  const keep=embEl.value;
+  fillSelect('vl_emb',DD.emb, DD.emb.includes(keep)?keep:(DD.emb[1]||DD.emb[0]));
+  vlRenderTable();
+}
+document.getElementById('vl_toggle').addEventListener('click',()=>{
+  document.getElementById('vl_panel').classList.toggle('collapsed');
+});
+document.getElementById('vl_emb').addEventListener('change',vlRenderTable);
+function vlAddProduto(){
+  const input=document.getElementById('vl_addprod_input');
+  const status=document.getElementById('vl_addprod_status');
+  const val=input.value.trim();
+  if(!val) return;
+  if(!DD.produto.includes(val)){ status.className='upd-status err'; status.textContent='✗ Produto não encontrado na base carregada.'; return; }
+  if(vlProdList.some(p=>p.produto===val)){ status.className='upd-status err'; status.textContent='Produto já está na lista.'; input.value=''; return; }
+  vlProdList.push({produto:val}); vlSaveProdList();
+  input.value=''; status.className='upd-status ok'; status.textContent='✓ Adicionado.';
+  vlRenderTable();
+}
+document.getElementById('vl_addprod_btn').addEventListener('click',vlAddProduto);
+document.getElementById('vl_addprod_input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); vlAddProduto(); }
+});
+document.getElementById('vl_table').addEventListener('click',e=>{
+  const rmp=e.target.closest('[data-vlrmprod]');
+  if(rmp){ const prod=rmp.dataset.vlrmprod; vlProdList=vlProdList.filter(p=>p.produto!==prod); vlSaveProdList(); vlRenderTable(); }
+});
+
 // init
 const saved=loadSavedBase();
 if(saved&&saved.base&&saved.base.precos){ applyBase(saved.base); } else { applyBase(DEFAULT_DATA); }
+if(saved&&saved.fname) BASEFNAME=saved.fname;
 refreshGlobals();
 dtRefreshContext();
-if(saved&&saved.fname) BASEFNAME=saved.fname;
+vlRefreshContext();
+if(!vlBaseline) vlCaptureBaseline();
 setBaseInfo(saved?saved.when:null);
 setFreightInfo();
 addRow();

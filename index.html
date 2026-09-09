@@ -306,6 +306,7 @@ datalist{display:none}
         <div class="field"><label>UF Exp <span style="color:var(--faint)">(opc)</span></label><select id="dt_ufExp"></select></div>
         <div class="field"><label>Embalagem</label><select id="dt_emb"></select></div>
         <div class="field"><label>Lista REP?</label><select id="dt_listaRep"></select></div>
+        <div class="field"><label>Lista de preço</label><select id="dt_moeda"></select></div>
         <div class="field"><label>Frete manual <span style="color:var(--faint)">(opc, US$/ton)</span></label><input type="number" step="0.01" id="dt_frete" placeholder="0"></div>
       </div>
       <div class="dtable-addprod">
@@ -613,7 +614,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v66';
+const APP_VER='v67';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1241,11 +1242,11 @@ let dtProdList=dtLoadProdList();
 
 // um mesmo Fat pode expedir o mesmo produto por Exp diferentes (ex: PNG->ROCHA e PNG->COO);
 // detecta automaticamente qual Exp tem preço pra esse produto, a menos que o usuário tenha escolhido manualmente
-function dtDetectExp(produto,ctx,g){
-  const candidates=DD.exp.filter(e=>DD.periodo.some(per=>!!PR[[per,ctx.fat,e,produto,ctx.emb,g.moeda].join('-')]));
+function dtDetectExp(produto,ctx){
+  const candidates=DD.exp.filter(e=>DD.periodo.some(per=>!!PR[[per,ctx.fat,e,produto,ctx.emb,ctx.moeda].join('-')]));
   return candidates[0]||DD.exp[0]||'';
 }
-function dtEffectiveExp(entry,ctx,g){ return entry.exp ? entry.exp : dtDetectExp(entry.produto,ctx,g); }
+function dtEffectiveExp(entry,ctx){ return entry.exp ? entry.exp : dtDetectExp(entry.produto,ctx); }
 
 function dtGetCtx(){
   return {
@@ -1254,6 +1255,7 @@ function dtGetCtx(){
     emb:document.getElementById('dt_emb').value,
     listaRep:document.getElementById('dt_listaRep').value,
     frete:document.getElementById('dt_frete').value,
+    moeda:document.getElementById('dt_moeda').value,
   };
 }
 
@@ -1264,6 +1266,8 @@ function dtRefreshContext(){
   document.getElementById('dt_ufExp').innerHTML='<option value="">(usa UF Fat)</option>'+opt(DD.ufExp,keep('dt_ufExp'));
   fillSelect('dt_emb',DD.emb, DD.emb.includes(keep('dt_emb'))?keep('dt_emb'):(DD.emb[1]||DD.emb[0]));
   fillSelect('dt_listaRep',DD.listaRep, DD.listaRep.includes(keep('dt_listaRep'))?keep('dt_listaRep'):'NÃO');
+  const g0=getGlobals();
+  fillSelect('dt_moeda',DD.moeda, DD.moeda.includes(keep('dt_moeda'))?keep('dt_moeda'):(DD.moeda.includes(g0.moeda)?g0.moeda:DD.moeda[0]));
   dtPeriods=dtPeriods.filter(p=>DD.periodo.includes(p));
   if(dtPeriods.length===0){ const g=getGlobals(); dtPeriods=[DD.periodo.includes(g.periodo)?g.periodo:DD.periodo[0]]; }
   dtRenderTable();
@@ -1272,12 +1276,12 @@ function dtRefreshContext(){
 function dtRowValue(prod,per,ctx,g){
   const marginVal=dtMargins[prod];
   if(marginVal===undefined||marginVal===''||Number.isNaN(+marginVal)) return {cls:'dt-val-empty',txt:'—'};
-  const key=[per,ctx.fat,ctx.exp,prod,ctx.emb,g.moeda].join('-');
+  const key=[per,ctx.fat,ctx.exp,prod,ctx.emb,ctx.moeda].join('-');
   if(!PR[key]) return {cls:'dt-val-empty',txt:'sem preço'};
   const row={fat:ctx.fat,exp:ctx.exp,ufExp:ctx.ufExp,emb:ctx.emb,listaRep:ctx.listaRep,frete:ctx.frete,cidade:'',produto:prod};
   // cada período usa o próprio Vencimento da Lista como validade (Data Fixa), não o campo Validade dos Parâmetros Globais
   const perInfo=PER[per];
-  const gg={periodo:per, moeda:g.moeda, dolar:g.dolar, tipo:'Data Fixa', validade:(perInfo?perInfo.B4:''), ddf:''};
+  const gg={periodo:per, moeda:ctx.moeda, dolar:g.dolar, tipo:'Data Fixa', validade:(perInfo?perInfo.B4:''), ddf:''};
   const sol=solvePrice(gg,row,+marginVal,'','');
   if(sol.err) return {cls:'dt-val-empty',txt:'—'};
   return {cls:cls(sol.fwd.AA),txt:fmt(sol.fwd.AA,'US$ '),val:sol.fwd.AA,aiVal:sol.fwd.AI,aiTxt:fmt(sol.fwd.AI,'US$ ')};

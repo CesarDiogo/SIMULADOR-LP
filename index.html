@@ -614,7 +614,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v69';
+const APP_VER='v71';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1227,6 +1227,9 @@ rowsEl.addEventListener('input',e=>{
     // se ao digitar o dropdown ainda não abriu (callback de teclado não disparou), abre agora
     // neste ponto o teclado já está aberto, então openProdDD mostra imediatamente
     if(!prodDD.classList.contains('open')) openProdDD(e.target);
+    // reposiciona na hora, sem esperar o próximo frame do loop — a barra de
+    // sugestões do teclado pode aparecer/mudar de tamanho exatamente ao digitar
+    else positionProdDD(e.target);
   }
 });
 prodDD.addEventListener('mousedown',e=>{ const opt=e.target.closest('.opt'); if(!opt||!activeProdInput) return; e.preventDefault(); const inp=activeProdInput; inp.value=opt.dataset.val; inp.dispatchEvent(new Event('input',{bubbles:true})); hideProdDD(); });
@@ -1397,6 +1400,7 @@ document.getElementById('dt_addprod_input').addEventListener('focusin',e=>{
 document.getElementById('dt_addprod_input').addEventListener('input',e=>{
   buildProdDDContent(e.target);
   if(!prodDD.classList.contains('open')) openProdDD(e.target);
+  else positionProdDD(e.target);
 });
 document.getElementById('dt_copy').addEventListener('click',async ()=>{
   const status=document.getElementById('dt_copy_status');

@@ -266,6 +266,7 @@ datalist{display:none}
     <button class="app-tab" data-tab="preco">Decisão de Preço</button>
     <button class="app-tab" data-tab="desconto">Tabela de Desconto</button>
     <button class="app-tab" data-tab="variacao">Variação de Lista</button>
+    <button class="app-tab" data-tab="rapido">Cálculo Rápido</button>
   </div>
 
   <div id="tab_preco">
@@ -344,6 +345,25 @@ datalist{display:none}
       <div class="dtable-wrap">
         <table class="dtable-table vl-table" id="vl_table"></table>
       </div>
+    </div>
+  </div>
+
+  <div class="panel dtable" id="qc_panel">
+    <div class="glabel dtable-toggle" id="qc_toggle">Cálculo Rápido <span class="dt-arrow">▾</span></div>
+    <div class="dtable-body" id="qc_body">
+      <p class="dtable-sub">Pra produto que não está na lista: pega o preço que te passaram, tira o desconto médio, e o simulador faz o resto (ICMS da unidade + PIS/COFINS se for entrega, + frete). Se não informar Local de Entrega, o resultado é FOB puro, sem PIS/COFINS.</p>
+      <div class="gfields dtable-ctx" id="qc_ctx">
+        <div class="field"><label>Período <span style="color:var(--faint)">(p/ ano do ICMS)</span></label><select id="qc_periodo"></select></div>
+        <div class="field"><label>Unidade (Fat)</label><select id="qc_fat"></select></div>
+        <div class="field"><label>UF Destino <span style="color:var(--faint)">(entrega)</span></label><select id="qc_ufExp"><option value="">(sem entrega · mesma UF)</option></select></div>
+        <div class="field" id="qc_cidade_wrap"><label>Cidade <span style="color:var(--faint)">(frete)</span></label><select id="qc_cidade"></select></div>
+        <div class="field"><label>Fator ICMS <span style="color:var(--faint)">(auto, editável)</span></label><input type="number" step="0.0001" id="qc_fatorIcms"></div>
+        <div class="field"><label>Frete manual <span style="color:var(--faint)">(R$/ton, sobrepõe tabela)</span></label><input type="number" step="0.01" id="qc_frete" placeholder="auto (tabela)"></div>
+        <div class="field"><label>Preço recebido <span style="color:var(--faint)">(US$)</span></label><input type="number" step="0.01" id="qc_preco" placeholder="ex: 677"></div>
+        <div class="field"><label>Desconto médio <span style="color:var(--faint)">(US$)</span></label><input type="number" step="0.01" id="qc_desconto" placeholder="ex: 65"></div>
+        <div class="field"><label>Dólar do dia</label><input type="number" step="0.0001" id="qc_dolar" placeholder="ex: 5,16"></div>
+      </div>
+      <div class="solve-side" id="qc_result" style="border-radius:10px;border:1px solid var(--line)"></div>
     </div>
   </div>
 
@@ -614,7 +634,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v71';
+const APP_VER='v73';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1101,7 +1121,7 @@ document.getElementById('file_base').addEventListener('change', async e=>{
     applyBase(b);
     BASEFNAME=file.name;
     const ok=saveBase(b,file.name);
-    refreshGlobals(); dtRefreshContext(); vlRefreshContext(); rows.forEach(renderResult);
+    refreshGlobals(); dtRefreshContext(); vlRefreshContext(); qcRefreshContext(); rows.forEach(renderResult);
     setBaseInfo(ok?Date.now():null);
     status.className='upd-status ok';
     status.textContent='✓ Base atualizada: '+Object.keys(b.precos).length.toLocaleString('pt-BR')+' preços'+(ok?' (salva neste navegador)':' (apenas nesta sessão — armazenamento bloqueado)');
@@ -1115,7 +1135,7 @@ document.getElementById('reset_base').addEventListener('click',()=>{
   try{localStorage.removeItem(LS_KEY);localStorage.removeItem(LS_META);}catch(e){}
   BASEFNAME='';
   applyBase(JSON.parse(JSON.stringify(DEFAULT_DATA)));
-  refreshGlobals(); dtRefreshContext(); vlRefreshContext(); rows.forEach(renderResult); setBaseInfo(null);
+  refreshGlobals(); dtRefreshContext(); vlRefreshContext(); qcRefreshContext(); rows.forEach(renderResult); setBaseInfo(null);
   document.getElementById('upd_status').className='upd-status';
   document.getElementById('upd_status').textContent='Base restaurada para a original embutida.';
 });
@@ -1131,7 +1151,7 @@ document.getElementById('file_freight').addEventListener('change', async e=>{
     applyFreight(f);
     FBNAME=file.name;
     const ok=await saveFreight(f,file.name); FBwhen=ok?Date.now():null;
-    refreshFreightMonth(); setFreightInfo(); renderAll();
+    refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcCompute();
     status.className='upd-status ok';
     status.textContent='✓ Frete atualizado: '+Object.keys(f.data).length.toLocaleString('pt-BR')+' rotas, '+f.months.length+' meses'+(ok?' (salvo neste navegador)':' (apenas nesta sessão)');
   }catch(err){ status.className='upd-status err'; status.textContent='✗ '+err.message; }
@@ -1140,7 +1160,7 @@ document.getElementById('file_freight').addEventListener('change', async e=>{
 document.getElementById('reset_freight').addEventListener('click', async ()=>{
   try{ await idbSet('freight',null); await idbSet('freight_when',null); await idbSet('freight_fname',null); }catch(e){}
   FB=null; FBwhen=null; FBNAME=''; CITYIDX=null;
-  refreshFreightMonth(); setFreightInfo(); renderAll();
+  refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcCompute();
   document.getElementById('upd_status_fr').className='upd-status';
   document.getElementById('upd_status_fr').textContent='Tabela de frete removida. Campo Frete volta a ser manual.';
 });
@@ -1451,6 +1471,7 @@ function showAppTab(tab){
   document.getElementById('tab_preco').classList.toggle('tab-hidden', tab!=='preco');
   document.getElementById('dtable_panel').classList.toggle('tab-hidden', tab!=='desconto');
   document.getElementById('vl_panel').classList.toggle('tab-hidden', tab!=='variacao');
+  document.getElementById('qc_panel').classList.toggle('tab-hidden', tab!=='rapido');
   document.querySelectorAll('.app-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
 }
 document.querySelectorAll('.app-tab').forEach(b=>b.addEventListener('click',()=>showAppTab(b.dataset.tab)));
@@ -1560,6 +1581,94 @@ document.getElementById('vl_table').addEventListener('click',e=>{
   if(rmp){ const prod=rmp.dataset.vlrmprod; vlProdList=vlProdList.filter(p=>p.produto!==prod); vlSaveProdList(); vlRenderTable(); }
 });
 
+// ---- Cálculo Rápido (painel novo, isolado — pra produto fora da lista) ----
+const K_PISCOFINS=0.990664; // 1 - 0,00925/(1-0,00925), mesmo ajuste usado no resto do app
+
+function qcAutoFatorIcms(){
+  const fat=document.getElementById('qc_fat').value;
+  const ufExp=document.getElementById('qc_ufExp').value;
+  const periodo=document.getElementById('qc_periodo').value;
+  const ufFat=FUF[fat]||'';
+  const ufDest=ufExp||ufFat;
+  const per=PER[periodo];
+  if(!per) return;
+  const key=ufFat+ufDest+String(per.T);
+  const R=IC[key]!==undefined?IC[key]:0;
+  document.getElementById('qc_fatorIcms').value=(1-R).toFixed(4);
+}
+
+function qcRefreshCidade(){
+  const wrap=document.getElementById('qc_cidade_wrap'); if(!wrap) return;
+  if(!FB){ wrap.style.display='none'; return; }
+  wrap.style.display='flex';
+  const fat=document.getElementById('qc_fat').value;
+  const ufExp=document.getElementById('qc_ufExp').value;
+  const sel=document.getElementById('qc_cidade');
+  const keep=sel.value;
+  if(!ufExp){ sel.innerHTML='<option value="">— selecione a UF Destino —</option>'; return; }
+  const cs=citiesFor(fat,ufExp);
+  if(cs.length===0){ sel.innerHTML='<option value="">(sem cidades p/ esta UF)</option>'; return; }
+  sel.innerHTML='<option value="">— selecione a cidade —</option>'+cs.map(c=>`<option ${c===keep?'selected':''}>${c}</option>`).join('');
+}
+
+function qcRefreshContext(){
+  const fatEl=document.getElementById('qc_fat'); if(!fatEl) return;
+  const keep=id=>document.getElementById(id).value;
+  fillSelect('qc_periodo',DD.periodo, DD.periodo.includes(keep('qc_periodo'))?keep('qc_periodo'):DD.periodo[0]);
+  fillSelect('qc_fat',DD.fat, DD.fat.includes(keep('qc_fat'))?keep('qc_fat'):DD.fat[0]);
+  document.getElementById('qc_ufExp').innerHTML='<option value="">(sem entrega · mesma UF)</option>'+opt(DD.ufExp,keep('qc_ufExp'));
+  qcRefreshCidade();
+  qcAutoFatorIcms();
+  qcCompute();
+}
+
+function qcCompute(){
+  const box=document.getElementById('qc_result'); if(!box) return;
+  const fat=document.getElementById('qc_fat').value;
+  const ufExp=document.getElementById('qc_ufExp').value;
+  const cidade=(document.getElementById('qc_cidade')||{}).value||'';
+  const freteManual=document.getElementById('qc_frete').value;
+  const fator=parseFloat(document.getElementById('qc_fatorIcms').value);
+  const preco=parseFloat(document.getElementById('qc_preco').value);
+  const desconto=parseFloat(document.getElementById('qc_desconto').value)||0;
+  const dolar=parseFloat(document.getElementById('qc_dolar').value);
+  if(Number.isNaN(preco)||Number.isNaN(fator)||!fator){ box.innerHTML='<div class="dt-empty">Preencha Preço recebido e Fator ICMS.</div>'; return; }
+  const row={fat,ufExp,cidade,frete:freteManual};
+  const g={freightMonth: FB?FB.months[0]:''};
+  const fr=resolveFrete(g,row);
+  const temFrete=fr.value>0;
+  const fobBase=(preco-desconto)/fator;
+  const fob=temFrete?fobBase/K_PISCOFINS:fobBase;
+  let html=`<div class="ss-item lead"><span>Modo</span><b>${temFrete?'CIF (com PIS/COFINS)':'FOB (sem PIS/COFINS)'}</b></div>`;
+  html+=`<div class="ss-item"><span>FOB</span><b class="${cls(fob)}">${fmt(fob,'US$ ')}</b></div>`;
+  if(!Number.isNaN(dolar)&&dolar) html+=`<div class="ss-item"><span>FOB convertido</span><b>${brl(fob*dolar)}</b></div>`;
+  if(temFrete){
+    const freteTxt=fr.src==='manual'?'(manual)':(fr.src==='tabela'?'(tabela · '+fr.month+')':'');
+    html+=`<div class="ss-item"><span>Frete</span><b>${brl(fr.value)}/ton ${freteTxt}</b></div>`;
+    if(!Number.isNaN(dolar)&&dolar){
+      const cif=fob+fr.value/dolar;
+      html+=`<div class="ss-item lead"><span>CIF</span><b class="${cls(cif)}">${fmt(cif,'US$ ')}</b></div>`;
+      html+=`<div class="ss-item"><span>CIF convertido</span><b>${brl(cif*dolar)}</b></div>`;
+    } else {
+      html+=`<div class="ss-item"><span class="pl-warn">Informe o Dólar do dia pra converter o frete e ver o CIF</span></div>`;
+    }
+  }
+  box.innerHTML=html;
+}
+document.getElementById('qc_toggle').addEventListener('click',()=>{
+  document.getElementById('qc_panel').classList.toggle('collapsed');
+});
+document.getElementById('qc_ctx').addEventListener('change',e=>{
+  const id=e.target.id;
+  if(id==='qc_fat'||id==='qc_ufExp'){ qcRefreshCidade(); qcAutoFatorIcms(); }
+  else if(id==='qc_periodo'){ qcAutoFatorIcms(); }
+  qcCompute();
+});
+document.getElementById('qc_ctx').addEventListener('input',e=>{
+  if(e.target.tagName==='SELECT') return; // já tratado no 'change'
+  qcCompute();
+});
+
 // init
 const saved=loadSavedBase();
 if(saved&&saved.base&&saved.base.precos){ applyBase(saved.base); } else { applyBase(DEFAULT_DATA); }
@@ -1567,6 +1676,7 @@ if(saved&&saved.fname) BASEFNAME=saved.fname;
 refreshGlobals();
 dtRefreshContext();
 vlRefreshContext();
+qcRefreshContext();
 if(!vlBaseline) vlCaptureBaseline();
 setBaseInfo(saved?saved.when:null);
 setFreightInfo();
@@ -1575,7 +1685,7 @@ showAppTab('preco');
 document.getElementById('app_ver').textContent=APP_VER;
 
 // carrega frete salvo (IndexedDB) de forma assíncrona
-(async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; FBNAME=fr.fname||''; refreshFreightMonth(); setFreightInfo(); renderAll(); } }catch(e){} })();
+(async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; FBNAME=fr.fname||''; refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcCompute(); } }catch(e){} })();
 
 if('serviceWorker' in navigator){
   const hadController=!!navigator.serviceWorker.controller;

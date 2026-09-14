@@ -614,7 +614,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v68';
+const APP_VER='v69';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1181,23 +1181,37 @@ function buildProdDDContent(input){
   if(shown.length===0){ prodDD.innerHTML='<div class="ddinfo">nenhum produto encontrado</div>'; }
   else { prodDD.innerHTML=shown.map(p=>'<div class="opt" data-val="'+p.replace(/"/g,'&quot;')+'">'+p+'</div>').join('')+(matches.length>cap?('<div class="ddinfo">+'+(matches.length-cap)+' mais… refine a busca</div>'):''); }
 }
+// Reposiciona o dropdown a cada frame enquanto estiver aberto — evita ele
+// "descolar" do campo por causa de timings de teclado/scroll que variam
+// entre navegadores mobile (Android/iOS reagem diferente ao abrir teclado).
+let prodDDSyncing=false;
+function startProdDDSync(input){
+  if(prodDDSyncing) return;
+  prodDDSyncing=true;
+  const loop=()=>{
+    if(!prodDD.classList.contains('open')||activeProdInput!==input){ prodDDSyncing=false; return; }
+    positionProdDD(input);
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
 function openProdDD(input){
   const vv=window.visualViewport;
   const isMobile=window.innerWidth<=640;
   if(isMobile && vv){
     const kbOpen=vv.height<window.screen.height*0.75;
     if(kbOpen){
-      positionProdDD(input); prodDD.classList.add('open');
+      positionProdDD(input); prodDD.classList.add('open'); startProdDDSync(input);
     } else {
       prodDD.classList.remove('open');
       let done=false;
-      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; positionProdDD(input); prodDD.classList.add('open'); } };
+      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; positionProdDD(input); prodDD.classList.add('open'); startProdDDSync(input); } };
       const onResize=()=>{ vv.removeEventListener('resize',onResize); clearTimeout(fb); finish(); };
       const fb=setTimeout(()=>{ vv.removeEventListener('resize',onResize); finish(); },700);
       vv.addEventListener('resize',onResize);
     }
   } else {
-    positionProdDD(input); prodDD.classList.add('open');
+    positionProdDD(input); prodDD.classList.add('open'); startProdDDSync(input);
   }
 }
 function hideProdDD(){ prodDD.classList.remove('open'); activeProdInput=null; }

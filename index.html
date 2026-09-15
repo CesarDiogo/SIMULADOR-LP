@@ -359,6 +359,7 @@ datalist{display:none}
         <div class="field" id="qc_cidade_wrap"><label>Cidade <span style="color:var(--faint)">(frete)</span></label><select id="qc_cidade"></select></div>
         <div class="field"><label>Fator ICMS <span style="color:var(--faint)">(auto, editável)</span></label><input type="number" step="0.0001" id="qc_fatorIcms"></div>
         <div class="field"><label>Fator Embutido <span style="color:var(--faint)">(ICMS+PIS/COFINS já na lista, auto)</span></label><input type="number" step="0.0001" id="qc_fatorEmbutido"></div>
+        <div class="field" id="qc_fmonth_wrap"><label>Mês do frete</label><select id="qc_freightMonth"></select></div>
         <div class="field"><label>Frete manual <span style="color:var(--faint)">(R$/ton, sobrepõe tabela)</span></label><input type="number" step="0.01" id="qc_frete" placeholder="auto (tabela)"></div>
         <div class="field"><label>Preço recebido <span style="color:var(--faint)">(US$)</span></label><input type="number" step="0.01" id="qc_preco" placeholder="ex: 677"></div>
         <div class="field"><label>Desconto médio <span style="color:var(--faint)">(US$)</span></label><input type="number" step="0.01" id="qc_desconto" placeholder="ex: 65"></div>
@@ -444,8 +445,8 @@ function extractBase(wb){
   // embutidos quando não há um produto de referência (produto fora da lista).
   const embSum={}, embN={};
   for(let i=1;i<pr.length;i++){ const r=pr[i]; if(!r) continue; const k=r[0]; if(k===null||k==='') continue; const ks=String(k);
-    const fat=r[4], B=num(r[24]), D=num(r[23]), E=num(r[30]);
-    if(fat!=null && B) { const pct=((D||0)+(E||0))/B; const fs=String(fat); embSum[fs]=(embSum[fs]||0)+pct; embN[fs]=(embN[fs]||0)+1; }
+    const fat=r[4], B=num(r[24]), C=num(r[23]), E=num(r[30]);
+    if(fat!=null && B) { const D=(C||0)*B; const pct=((D||0)+(E||0))/B; const fs=String(fat); embSum[fs]=(embSum[fs]||0)+pct; embN[fs]=(embN[fs]||0)+1; }
     if(ks in precos) continue;
     precos[ks]=[num(r[14]),num(r[16]),num(r[22]),num(r[23]),num(r[24]),num(r[29]),num(r[30]),num(r[18]),r[6]!=null?String(r[6]):'']; }
   const fatEmbutido={};
@@ -644,7 +645,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v74';
+const APP_VER='v75';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1161,7 +1162,7 @@ document.getElementById('file_freight').addEventListener('change', async e=>{
     applyFreight(f);
     FBNAME=file.name;
     const ok=await saveFreight(f,file.name); FBwhen=ok?Date.now():null;
-    refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcCompute();
+    refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute();
     status.className='upd-status ok';
     status.textContent='✓ Frete atualizado: '+Object.keys(f.data).length.toLocaleString('pt-BR')+' rotas, '+f.months.length+' meses'+(ok?' (salvo neste navegador)':' (apenas nesta sessão)');
   }catch(err){ status.className='upd-status err'; status.textContent='✗ '+err.message; }
@@ -1170,7 +1171,7 @@ document.getElementById('file_freight').addEventListener('change', async e=>{
 document.getElementById('reset_freight').addEventListener('click', async ()=>{
   try{ await idbSet('freight',null); await idbSet('freight_when',null); await idbSet('freight_fname',null); }catch(e){}
   FB=null; FBwhen=null; FBNAME=''; CITYIDX=null;
-  refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcCompute();
+  refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute();
   document.getElementById('upd_status_fr').className='upd-status';
   document.getElementById('upd_status_fr').textContent='Tabela de frete removida. Campo Frete volta a ser manual.';
 });
@@ -1629,6 +1630,19 @@ function qcRefreshCidade(){
   sel.innerHTML='<option value="">— selecione a cidade —</option>'+cs.map(c=>`<option ${c===keep?'selected':''}>${c}</option>`).join('');
 }
 
+function qcRefreshFreightMonth(){
+  const wrap=document.getElementById('qc_fmonth_wrap'); const sel=document.getElementById('qc_freightMonth'); if(!wrap||!sel) return;
+  if(FB&&FB.months.length){
+    const cur=sel.value;
+    const per=document.getElementById('qc_periodo').value;
+    let def=FB.months[0];
+    const m=per&&per.match(/^Q(\d)_(\d{4})$/);
+    if(m){ const qLast={'2':'06','3':'09','4':'12','1':'03'}[m[1]]; const guess=m[2]+'-'+qLast; if(FB.months.includes(guess)) def=guess; }
+    fillSelect('qc_freightMonth',FB.months, FB.months.includes(cur)?cur:def);
+    wrap.style.display='flex';
+  } else { wrap.style.display='none'; sel.innerHTML=''; }
+}
+
 function qcRefreshContext(){
   const fatEl=document.getElementById('qc_fat'); if(!fatEl) return;
   const keep=id=>document.getElementById(id).value;
@@ -1638,6 +1652,7 @@ function qcRefreshContext(){
   qcRefreshCidade();
   qcAutoFatorIcms();
   qcAutoFatorEmbutido();
+  qcRefreshFreightMonth();
   qcCompute();
 }
 
@@ -1647,6 +1662,7 @@ function qcCompute(){
   const ufExp=document.getElementById('qc_ufExp').value;
   const cidade=(document.getElementById('qc_cidade')||{}).value||'';
   const freteManual=document.getElementById('qc_frete').value;
+  const freightMonth=(document.getElementById('qc_freightMonth')||{}).value||'';
   const fator=parseFloat(document.getElementById('qc_fatorIcms').value);
   const fatorEmbRaw=parseFloat(document.getElementById('qc_fatorEmbutido').value);
   const fatorEmb=(!Number.isNaN(fatorEmbRaw)&&fatorEmbRaw)?fatorEmbRaw:1;
@@ -1655,7 +1671,7 @@ function qcCompute(){
   const dolar=parseFloat(document.getElementById('qc_dolar').value);
   if(Number.isNaN(preco)||Number.isNaN(fator)||!fator){ box.innerHTML='<div class="dt-empty">Preencha Preço recebido e Fator ICMS.</div>'; return; }
   const row={fat,ufExp,cidade,frete:freteManual};
-  const g={freightMonth: FB?FB.months[0]:''};
+  const g={freightMonth: freightMonth||(FB?FB.months[0]:'')};
   const fr=resolveFrete(g,row);
   const temFrete=fr.value>0;
   const baseAjustada=preco*fatorEmb-desconto;
@@ -1684,7 +1700,7 @@ document.getElementById('qc_ctx').addEventListener('change',e=>{
   const id=e.target.id;
   if(id==='qc_fat'){ qcRefreshCidade(); qcAutoFatorIcms(); qcAutoFatorEmbutido(); }
   else if(id==='qc_ufExp'){ qcRefreshCidade(); qcAutoFatorIcms(); }
-  else if(id==='qc_periodo'){ qcAutoFatorIcms(); }
+  else if(id==='qc_periodo'){ qcAutoFatorIcms(); qcRefreshFreightMonth(); }
   qcCompute();
 });
 document.getElementById('qc_ctx').addEventListener('input',e=>{
@@ -1708,7 +1724,7 @@ showAppTab('preco');
 document.getElementById('app_ver').textContent=APP_VER;
 
 // carrega frete salvo (IndexedDB) de forma assíncrona
-(async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; FBNAME=fr.fname||''; refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcCompute(); } }catch(e){} })();
+(async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; FBNAME=fr.fname||''; refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute(); } }catch(e){} })();
 
 if('serviceWorker' in navigator){
   const hadController=!!navigator.serviceWorker.controller;

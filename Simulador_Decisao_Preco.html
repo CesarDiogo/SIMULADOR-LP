@@ -280,6 +280,12 @@ datalist{display:none}
       <div class="field field-date"><label>Validade / Data Pgto</label><div class="date-wrap"><input id="g_validade" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" autocomplete="off"><div class="cal-btn-wrap" title="Escolher data">📅<input id="g_validade_picker" type="date" class="cal-overlay"></div></div></div>
       <div class="field" id="ddf_wrap" style="display:none"><label>Qtd DDF</label><select id="g_ddf"></select></div>
       <div class="field" id="fmonth_wrap" style="display:none"><label>Mês do frete</label><select id="g_freightMonth"></select></div>
+      <div class="field" id="destpad_uf_wrap" style="display:none"><label>UF Destino padrão <span style="color:var(--faint)">(novas linhas)</span></label><select id="g_ufExpPadrao"><option value="">(nenhuma)</option></select></div>
+      <div class="field" id="destpad_cidade_wrap" style="display:none"><label>Cidade padrão</label><select id="g_cidadePadrao"></select></div>
+    </div>
+    <div class="upd-row" id="destpad_actions_wrap" style="display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+      <div class="upd-left"><div class="base-info">Destino padrão preenche automaticamente todo produto novo que você adicionar.</div></div>
+      <div class="upd-actions"><button class="btn" id="destpad_aplicar">Aplicar a todas as linhas</button></div>
     </div>
     <div class="period-ref" id="period_ref"></div>
   </div>
@@ -511,6 +517,8 @@ function buildCityIndex(){ CITYIDX=new Map(); if(!FB) return;
 function applyFreight(f){ FB=f; buildCityIndex(); }
 function freightMonths(){ return FB?FB.months:[]; }
 function citiesFor(fat,uf){ if(!FB||!CITYIDX) return []; const o=fnorm(FAT2ORIG[fat]||''); const u=fnorm(uf||''); if(!o||!u) return []; return CITYIDX.get(o+'|'+u)||[]; }
+// união das cidades de todos os Fat pra essa UF (usado no destino padrão, que não é preso a um Fat)
+function citiesForAnyFat(uf){ if(!DD) return []; const set=new Set(); DD.fat.forEach(fat=>citiesFor(fat,uf).forEach(c=>set.add(c))); return [...set].sort(); }
 
 // IndexedDB mínimo
 function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('simlp_idb',1); r.onupgradeneeded=()=>{ r.result.createObjectStore('kv'); }; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
@@ -645,7 +653,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v75';
+const APP_VER='v76';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -818,7 +826,9 @@ function renderAll(){
 
 function addRow(){
   uid++;
-  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:'',emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:'',mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD'});
+  const ufExpPad=(document.getElementById('g_ufExpPadrao')||{}).value||'';
+  const cidadePad=ufExpPad?((document.getElementById('g_cidadePadrao')||{}).value||''):'';
+  rows.push({id:uid,n:rows.length+1,produto:'',fat:DD.fat[0],exp:DD.exp[0],ufExp:ufExpPad,emb:DD.emb[1]||DD.emb[0],listaRep:'NÃO',frete:'',venda:'',cidade:cidadePad,mode:'preco',tgtAE:'',tgtAI:'',tgtAA:'',vendaMoeda:'USD'});
   renderAll();
 }
 
@@ -1120,6 +1130,39 @@ function refreshFreightMonth(){
   } else { wrap.style.display='none'; sel.innerHTML=''; }
 }
 
+// Destino padrão (UF + Cidade): só faz sentido com tabela de frete carregada.
+// Preenche automaticamente toda linha nova ("+ Adicionar Produto"), sem mexer nas já existentes
+// (pra isso tem o botão "Aplicar a todas as linhas").
+function refreshCidadePadrao(){
+  const sel=document.getElementById('g_cidadePadrao'); if(!sel) return;
+  const uf=document.getElementById('g_ufExpPadrao').value;
+  const keep=sel.value;
+  if(!uf){ sel.innerHTML='<option value="">— selecione a UF —</option>'; return; }
+  const cs=citiesForAnyFat(uf);
+  if(cs.length===0){ sel.innerHTML='<option value="">(sem cidades p/ esta UF)</option>'; return; }
+  sel.innerHTML='<option value="">— selecione a cidade —</option>'+cs.map(c=>`<option ${c===keep?'selected':''}>${c}</option>`).join('');
+}
+function refreshDestPadrao(){
+  const wraps=['destpad_uf_wrap','destpad_cidade_wrap','destpad_actions_wrap'].map(id=>document.getElementById(id));
+  if(wraps.some(w=>!w)) return;
+  if(FB){
+    wraps.forEach(w=>w.style.display='flex');
+    const keep=document.getElementById('g_ufExpPadrao').value;
+    document.getElementById('g_ufExpPadrao').innerHTML='<option value="">(nenhuma)</option>'+opt(DD.ufExp,keep);
+    refreshCidadePadrao();
+  } else {
+    wraps.forEach(w=>w.style.display='none');
+  }
+}
+document.getElementById('g_ufExpPadrao').addEventListener('change',refreshCidadePadrao);
+document.getElementById('destpad_aplicar').addEventListener('click',()=>{
+  const ufExp=document.getElementById('g_ufExpPadrao').value;
+  const cidade=document.getElementById('g_cidadePadrao').value;
+  if(!ufExp){ return; }
+  rows.forEach(r=>{ r.ufExp=ufExp; r.cidade=cidade; });
+  renderAll();
+});
+
 document.getElementById('file_base').addEventListener('change', async e=>{
   const file=e.target.files[0]; if(!file) return;
   const status=document.getElementById('upd_status');
@@ -1162,7 +1205,7 @@ document.getElementById('file_freight').addEventListener('change', async e=>{
     applyFreight(f);
     FBNAME=file.name;
     const ok=await saveFreight(f,file.name); FBwhen=ok?Date.now():null;
-    refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute();
+    refreshFreightMonth(); refreshDestPadrao(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute();
     status.className='upd-status ok';
     status.textContent='✓ Frete atualizado: '+Object.keys(f.data).length.toLocaleString('pt-BR')+' rotas, '+f.months.length+' meses'+(ok?' (salvo neste navegador)':' (apenas nesta sessão)');
   }catch(err){ status.className='upd-status err'; status.textContent='✗ '+err.message; }
@@ -1171,7 +1214,7 @@ document.getElementById('file_freight').addEventListener('change', async e=>{
 document.getElementById('reset_freight').addEventListener('click', async ()=>{
   try{ await idbSet('freight',null); await idbSet('freight_when',null); await idbSet('freight_fname',null); }catch(e){}
   FB=null; FBwhen=null; FBNAME=''; CITYIDX=null;
-  refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute();
+  refreshFreightMonth(); refreshDestPadrao(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute();
   document.getElementById('upd_status_fr').className='upd-status';
   document.getElementById('upd_status_fr').textContent='Tabela de frete removida. Campo Frete volta a ser manual.';
 });
@@ -1719,12 +1762,13 @@ qcRefreshContext();
 if(!vlBaseline) vlCaptureBaseline();
 setBaseInfo(saved?saved.when:null);
 setFreightInfo();
+refreshDestPadrao();
 addRow();
 showAppTab('preco');
 document.getElementById('app_ver').textContent=APP_VER;
 
 // carrega frete salvo (IndexedDB) de forma assíncrona
-(async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; FBNAME=fr.fname||''; refreshFreightMonth(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute(); } }catch(e){} })();
+(async()=>{ try{ const fr=await loadFreight(); if(fr&&fr.f&&fr.f.data){ applyFreight(fr.f); FBwhen=fr.when||null; FBNAME=fr.fname||''; refreshFreightMonth(); refreshDestPadrao(); setFreightInfo(); renderAll(); qcRefreshCidade(); qcRefreshFreightMonth(); qcCompute(); } }catch(e){} })();
 
 if('serviceWorker' in navigator){
   const hadController=!!navigator.serviceWorker.controller;

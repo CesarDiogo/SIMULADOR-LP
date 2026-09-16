@@ -653,7 +653,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v76';
+const APP_VER='v77';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1238,10 +1238,17 @@ function positionProdDD(input){
   prodDD.style.width=Math.max(r.width,240)+'px';
   const showAbove=isMobile?(spaceAbove>60):(spaceBelow<120&&spaceAbove>spaceBelow);
   if(showAbove){
-    const h=Math.max(56,Math.min(spaceAbove,maxH));
+    const capH=Math.max(56,Math.min(spaceAbove,maxH));
     prodDD.style.bottom='';
-    prodDD.style.top=(sY+r.top-h-4)+'px';
-    prodDD.style.maxHeight=h+'px';
+    prodDD.style.maxHeight=capH+'px';
+    // A caixa so preenche o teto (capH) quando tem bastante resultado pra rolar.
+    // Com poucos resultados (ex: depois de filtrar digitando) ela fica bem mais
+    // baixa que isso - calcular o topo usando capH nesse caso deixava um vao
+    // vazio entre ela e o campo, e por isso parecia "flutuar" la em cima da tela.
+    // Mede a altura real do conteudo (a caixa ja precisa estar visivel/'open'
+    // pra essa medida vir certa) e cola o fundo dela no campo de verdade.
+    const realH=Math.min(prodDD.scrollHeight||capH,capH);
+    prodDD.style.top=(sY+r.top-realH-4)+'px';
   } else {
     prodDD.style.top=(sY+r.bottom+4)+'px';
     prodDD.style.bottom='';
@@ -1272,20 +1279,24 @@ function startProdDDSync(input){
 function openProdDD(input){
   const vv=window.visualViewport;
   const isMobile=window.innerWidth<=640;
+  // Abre (fica visivel) ANTES de posicionar - positionProdDD agora mede a
+  // altura real do conteudo (scrollHeight), que vem zerada se a caixa ainda
+  // estiver com display:none.
+  const show=()=>{ prodDD.classList.add('open'); positionProdDD(input); startProdDDSync(input); };
   if(isMobile && vv){
     const kbOpen=vv.height<window.screen.height*0.75;
     if(kbOpen){
-      positionProdDD(input); prodDD.classList.add('open'); startProdDDSync(input);
+      show();
     } else {
       prodDD.classList.remove('open');
       let done=false;
-      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; positionProdDD(input); prodDD.classList.add('open'); startProdDDSync(input); } };
+      const finish=()=>{ if(!done&&activeProdInput===input){ done=true; show(); } };
       const onResize=()=>{ vv.removeEventListener('resize',onResize); clearTimeout(fb); finish(); };
       const fb=setTimeout(()=>{ vv.removeEventListener('resize',onResize); finish(); },700);
       vv.addEventListener('resize',onResize);
     }
   } else {
-    positionProdDD(input); prodDD.classList.add('open'); startProdDDSync(input);
+    show();
   }
 }
 function hideProdDD(){ prodDD.classList.remove('open'); activeProdInput=null; }

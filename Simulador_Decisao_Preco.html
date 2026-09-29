@@ -168,6 +168,7 @@ h1{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.02em;margin-t
 .dt-val.pos{color:var(--pos)} .dt-val.neg{color:var(--neg)} .dt-val.zero,.dt-val-empty{color:var(--muted);font-weight:400}
 .dt-pl{display:block;font-size:10.5px;color:var(--faint);font-weight:400;margin-top:2px}
 .dt-pl.pos{color:var(--pos)} .dt-pl.neg{color:var(--neg)} .dt-pl.zero{color:var(--faint)}
+.dt-old{display:block;font-size:10.5px;color:var(--muted);font-weight:400;margin-top:2px}
 .dt-per-sub{font-size:9px;color:var(--faint);text-transform:none;letter-spacing:0;margin-top:3px;font-weight:400}
 .vl-table th.vl-fat{text-align:center;border-left:2px solid var(--line);font-size:11px}
 .vl-table th.vl-per{font-size:9px;color:var(--faint);font-weight:400;padding:4px 8px;text-align:center;border-left:1px solid var(--line)}
@@ -339,6 +340,7 @@ datalist{display:none}
       <p class="dtable-sub">Acompanha o Preço de Lista de PNG, UBA, SLZ e ROO, em todos os períodos disponíveis, para os produtos que você adicionar abaixo (lista fixa, igual à da Tabela de Desconto). A cada nova planilha carregada, compara com a lista anterior e mostra quanto subiu ou desceu.</p>
       <div class="gfields dtable-ctx">
         <div class="field"><label>Embalagem</label><select id="vl_emb"></select></div>
+        <div class="field"><label>Lista de preço</label><select id="vl_moeda"></select></div>
       </div>
       <div class="dtable-addprod">
         <input type="text" id="vl_addprod_input" list="dl_produto" placeholder="Buscar produto para adicionar à lista..." autocomplete="off">
@@ -653,7 +655,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v77';
+const APP_VER='v78';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1553,7 +1555,12 @@ function vlLoadBaseline(){ try{ return JSON.parse(localStorage.getItem(VL_BASELI
 function vlSaveBaseline(){ try{ localStorage.setItem(VL_BASELINE_KEY,JSON.stringify(vlBaseline)); }catch(e){} }
 let vlBaseline=vlLoadBaseline();
 
-function vlGetCtx(){ return { emb: (document.getElementById('vl_emb')||{}).value||'' }; }
+function vlGetCtx(){
+  return {
+    emb: (document.getElementById('vl_emb')||{}).value||'',
+    moeda: (document.getElementById('vl_moeda')||{}).value||'',
+  };
+}
 
 // mesmo produto pode ser expedido por Exp diferentes conforme o Fat; detecta automaticamente
 function vlDetectExp(produto,fat,emb,moeda){
@@ -1568,34 +1575,38 @@ function vlGetB(produto,fat,periodo,emb,moeda){
   return (p && p[4]!=null) ? p[4] : null; // índice 4 = Preço de Lista (Y_pr / B)
 }
 function vlComputeLiveValues(){
-  const g=getGlobals(); const ctx=vlGetCtx();
+  const ctx=vlGetCtx();
   const values={};
   const periods=DD.periodo||[];
+  const moedas=(DD.moeda&&DD.moeda.length)?DD.moeda:[ctx.moeda];
   vlProdList.forEach(entry=>{
     const prod=entry.produto;
     VL_FATS.forEach(fat=>{
-      periods.forEach(per=>{ values[fat+'|'+per+'|'+prod]=vlGetB(prod,fat,per,ctx.emb,g.moeda); });
+      periods.forEach(per=>{
+        moedas.forEach(moeda=>{ values[fat+'|'+per+'|'+prod+'|'+moeda]=vlGetB(prod,fat,per,ctx.emb,moeda); });
+      });
     });
   });
-  return {when:Date.now(), fname:BASEFNAME, emb:ctx.emb, moeda:g.moeda, values};
+  return {when:Date.now(), fname:BASEFNAME, emb:ctx.emb, values};
 }
 function vlCaptureBaseline(){ vlBaseline=vlComputeLiveValues(); vlSaveBaseline(); }
 
 function vlCellHtml(s1,s0){
   if(s1==null) return `<td class="dt-val dt-val-empty">sem preço</td>`;
   const main=fmt(s1,'US$ ');
-  let deltaHtml='';
+  let extraHtml='';
   if(s0!=null){
     const d=s1-s0;
-    deltaHtml=`<span class="dt-pl ${cls(d)}">Δ ${d>0?'+':''}${nfmt(d)}</span>`;
+    extraHtml=`<span class="dt-old">antes: ${fmt(s0,'US$ ')}</span><span class="dt-pl ${cls(d)}">Δ ${d>0?'+':''}${nfmt(d)}</span>`;
   }
-  return `<td class="dt-val">${main}${deltaHtml}</td>`;
+  return `<td class="dt-val">${main}${extraHtml}</td>`;
 }
 function vlRenderTable(){
   const host=document.getElementById('vl_table'); if(!host) return;
   if(vlProdList.length===0){ host.innerHTML='<tr><td class="dt-empty">Nenhum produto na lista. Use o campo acima para adicionar.</td></tr>'; vlSetBaselineInfo(); return; }
   const periods=DD.periodo||[];
   if(periods.length===0){ host.innerHTML='<tr><td class="dt-empty">Base sem períodos.</td></tr>'; vlSetBaselineInfo(); return; }
+  const ctx=vlGetCtx();
   const live=vlComputeLiveValues();
   const baseVals=vlBaseline?vlBaseline.values:{};
   const row1=`<tr><th class="dt-prod" rowspan="2">Produto</th>`+VL_FATS.map(fat=>`<th class="vl-fat" colspan="${periods.length}">${fat}</th>`).join('')+`</tr>`;
@@ -1603,7 +1614,7 @@ function vlRenderTable(){
   const thead=`<thead>${row1}${row2}</thead>`;
   const tbody=vlProdList.map(entry=>{
     const prod=entry.produto;
-    const cells=VL_FATS.map(fat=>periods.map(per=>vlCellHtml(live.values[fat+'|'+per+'|'+prod], baseVals[fat+'|'+per+'|'+prod])).join('')).join('');
+    const cells=VL_FATS.map(fat=>periods.map(per=>vlCellHtml(live.values[fat+'|'+per+'|'+prod+'|'+ctx.moeda], baseVals[fat+'|'+per+'|'+prod+'|'+ctx.moeda])).join('')).join('');
     return `<tr data-vlprod="${prod.replace(/"/g,'&quot;')}"><td class="dt-prod">${prod}<button type="button" class="dt-rm-prod" data-vlrmprod="${prod.replace(/"/g,'&quot;')}" title="Remover produto da lista">×</button></td>${cells}</tr>`;
   }).join('');
   host.innerHTML=thead+'<tbody>'+tbody+'</tbody>';
@@ -1618,14 +1629,17 @@ function vlSetBaselineInfo(){
 }
 function vlRefreshContext(){
   const embEl=document.getElementById('vl_emb'); if(!embEl) return;
-  const keep=embEl.value;
-  fillSelect('vl_emb',DD.emb, DD.emb.includes(keep)?keep:(DD.emb[1]||DD.emb[0]));
+  const keep=id=>document.getElementById(id).value;
+  fillSelect('vl_emb',DD.emb, DD.emb.includes(keep('vl_emb'))?keep('vl_emb'):(DD.emb[1]||DD.emb[0]));
+  const g0=getGlobals();
+  fillSelect('vl_moeda',DD.moeda, DD.moeda.includes(keep('vl_moeda'))?keep('vl_moeda'):(DD.moeda.includes(g0.moeda)?g0.moeda:DD.moeda[0]));
   vlRenderTable();
 }
 document.getElementById('vl_toggle').addEventListener('click',()=>{
   document.getElementById('vl_panel').classList.toggle('collapsed');
 });
 document.getElementById('vl_emb').addEventListener('change',vlRenderTable);
+document.getElementById('vl_moeda').addEventListener('change',vlRenderTable);
 function vlAddProduto(){
   const input=document.getElementById('vl_addprod_input');
   const status=document.getElementById('vl_addprod_status');

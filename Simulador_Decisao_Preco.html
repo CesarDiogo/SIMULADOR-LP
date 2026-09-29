@@ -655,7 +655,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v78';
+const APP_VER='v79';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1346,11 +1346,20 @@ let dtProdList=dtLoadProdList();
 
 // um mesmo Fat pode expedir o mesmo produto por Exp diferentes (ex: PNG->ROCHA e PNG->COO);
 // detecta automaticamente qual Exp tem preço pra esse produto, a menos que o usuário tenha escolhido manualmente
+// PNG só expede por COO ou ROCHA; IMB aparece na planilha de Preços mas não é rota válida
+const PNG_EXP_ALLOW=['COO','ROCHA'];
 function dtDetectExp(produto,ctx){
   const candidates=DD.exp.filter(e=>DD.periodo.some(per=>!!PR[[per,ctx.fat,e,produto,ctx.emb,ctx.moeda].join('-')]));
+  if(ctx.fat==='PNG') return candidates.filter(e=>PNG_EXP_ALLOW.includes(e))[0]||'';
   return candidates[0]||DD.exp[0]||'';
 }
-function dtEffectiveExp(entry,ctx){ return entry.exp ? entry.exp : dtDetectExp(entry.produto,ctx); }
+function dtEffectiveExp(entry,ctx){
+  if(entry.exp){
+    if(ctx.fat==='PNG' && !PNG_EXP_ALLOW.includes(entry.exp)) return dtDetectExp(entry.produto,ctx);
+    return entry.exp;
+  }
+  return dtDetectExp(entry.produto,ctx);
+}
 
 function dtGetCtx(){
   return {
@@ -1564,7 +1573,8 @@ function vlGetCtx(){
 
 // mesmo produto pode ser expedido por Exp diferentes conforme o Fat; detecta automaticamente
 function vlDetectExp(produto,fat,emb,moeda){
-  const candidates=DD.exp.filter(e=>DD.periodo.some(per=>!!PR[[per,fat,e,produto,emb,moeda].join('-')]));
+  let candidates=DD.exp.filter(e=>DD.periodo.some(per=>!!PR[[per,fat,e,produto,emb,moeda].join('-')]));
+  if(fat==='PNG') candidates=candidates.filter(e=>PNG_EXP_ALLOW.includes(e));
   return candidates[0]||'';
 }
 function vlGetB(produto,fat,periodo,emb,moeda){

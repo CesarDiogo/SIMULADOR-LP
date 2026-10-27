@@ -308,14 +308,17 @@ datalist{display:none}
   <div class="panel dtable" id="dtable_panel">
     <div class="glabel dtable-toggle" id="dtable_toggle">Tabela de Desconto por Margem <span class="dt-arrow">▾</span></div>
     <div class="dtable-body" id="dtable_body">
-      <p class="dtable-sub">Escolha o contexto (Fat/Embalagem) e a Meta de Margem Presumida de cada produto — o Desconto Comercial SF (AA) sai calculado na hora, por período. O Exp é detectado por produto (editável na linha, já que um mesmo Fat pode expedir produtos por Exp diferentes). Cada coluna usa automaticamente o Vencimento da Lista do próprio período (não usa o campo Validade dos Parâmetros Globais). Frete manual único (sem tabela de frete por cidade).</p>
+      <p class="dtable-sub">Escolha o contexto (Fat/Embalagem) e a Meta de Margem Presumida de cada produto — o Desconto Comercial SF (AA) sai calculado na hora, por período. O Exp é detectado por produto (editável na linha, já que um mesmo Fat pode expedir produtos por Exp diferentes). Sem Validade / Data Pgto preenchida, cada coluna considera o pagamento no Vencimento da Lista do próprio período (sem juros). Preenchendo Tipo Pgto + Validade (Data Fixa ou DDF), os dias de juros/antecipação de cada período contam a partir do vencimento dele, e Desconto, Presumida e P&L passam a refletir esse prazo (não usa os Parâmetros Globais). O P&amp;L mínimo é um piso: o desconto mostrado é o maior que atende ao mesmo tempo a meta de Presumida e esse piso de P&amp;L (o que limitar, aparece indicado na célula). O frete não altera desconto nem margens, então o Preço mostrado é FOB (sem frete).</p>
       <div class="gfields dtable-ctx">
         <div class="field"><label>Fat</label><select id="dt_fat"></select></div>
         <div class="field"><label>UF Exp <span style="color:var(--faint)">(opc)</span></label><select id="dt_ufExp"></select></div>
         <div class="field"><label>Embalagem</label><select id="dt_emb"></select></div>
         <div class="field"><label>Lista REP?</label><select id="dt_listaRep"></select></div>
         <div class="field"><label>Lista de preço</label><select id="dt_moeda"></select></div>
-        <div class="field"><label>Frete manual <span style="color:var(--faint)">(opc, US$/ton)</span></label><input type="number" step="0.01" id="dt_frete" placeholder="0"></div>
+        <div class="field"><label>Tipo Pgto <span style="color:var(--faint)">(opc)</span></label><select id="dt_tipo"></select></div>
+        <div class="field"><label>Validade / Data Pgto <span style="color:var(--faint)">(opc)</span></label><input id="dt_validade" type="text" inputmode="numeric" maxlength="10" placeholder="vazio = no vencimento da lista" autocomplete="off"></div>
+        <div class="field" id="dt_ddf_wrap" style="display:none"><label>Qtd DDF</label><select id="dt_ddf"></select></div>
+        <div class="field"><label>P&amp;L mínimo <span style="color:var(--faint)">(US$, piso)</span></label><input type="number" step="0.01" id="dt_plmin" value="0" placeholder="vazio = sem piso"></div>
       </div>
       <div class="dtable-addprod">
         <input type="text" id="dt_addprod_input" placeholder="Buscar produto para adicionar à lista..." autocomplete="off">
@@ -660,7 +663,7 @@ function solvePrice(g,row,tAE,tAI,tAA){
 }
 
 // ---------- UI ----------
-const APP_VER='v80';
+const APP_VER='v81';
 let rows=[];
 let uid=0;
 function opt(arr,sel){return arr.map(v=>`<option ${v===sel?'selected':''}>${v}</option>`).join('')}
@@ -1372,8 +1375,11 @@ function dtGetCtx(){
     ufExp:document.getElementById('dt_ufExp').value,
     emb:document.getElementById('dt_emb').value,
     listaRep:document.getElementById('dt_listaRep').value,
-    frete:document.getElementById('dt_frete').value,
     moeda:document.getElementById('dt_moeda').value,
+    tipo:document.getElementById('dt_tipo').value,
+    validade:brToISO(document.getElementById('dt_validade').value),
+    ddf:document.getElementById('dt_ddf').value,
+    plMin:document.getElementById('dt_plmin').value,
   };
 }
 
@@ -1386,6 +1392,9 @@ function dtRefreshContext(){
   fillSelect('dt_listaRep',DD.listaRep, DD.listaRep.includes(keep('dt_listaRep'))?keep('dt_listaRep'):'NÃO');
   const g0=getGlobals();
   fillSelect('dt_moeda',DD.moeda, DD.moeda.includes(keep('dt_moeda'))?keep('dt_moeda'):(DD.moeda.includes(g0.moeda)?g0.moeda:DD.moeda[0]));
+  fillSelect('dt_tipo',DD.tipoPgto, DD.tipoPgto.includes(keep('dt_tipo'))?keep('dt_tipo'):'Data Fixa');
+  fillSelect('dt_ddf',DD.i4, DD.i4.includes(keep('dt_ddf'))?keep('dt_ddf'):DD.i4[0]);
+  dtToggleDDF();
   dtPeriods=dtPeriods.filter(p=>DD.periodo.includes(p));
   if(dtPeriods.length===0){ const g=getGlobals(); dtPeriods=[DD.periodo.includes(g.periodo)?g.periodo:DD.periodo[0]]; }
   dtRenderTable();
@@ -1396,13 +1405,18 @@ function dtRowValue(prod,per,ctx,g){
   if(marginVal===undefined||marginVal===''||Number.isNaN(+marginVal)) return {cls:'dt-val-empty',txt:'—'};
   const key=[per,ctx.fat,ctx.exp,prod,ctx.emb,ctx.moeda].join('-');
   if(!PR[key]) return {cls:'dt-val-empty',txt:'sem preço'};
-  const row={fat:ctx.fat,exp:ctx.exp,ufExp:ctx.ufExp,emb:ctx.emb,listaRep:ctx.listaRep,frete:ctx.frete,cidade:'',produto:prod};
-  // cada período usa o próprio Vencimento da Lista como validade (Data Fixa), não o campo Validade dos Parâmetros Globais
+  const row={fat:ctx.fat,exp:ctx.exp,ufExp:ctx.ufExp,emb:ctx.emb,listaRep:ctx.listaRep,frete:'',cidade:'',produto:prod};
+  // sem Validade/Data Pgto: pagamento no Vencimento da Lista do próprio período (sem juros);
+  // com Validade: Tipo Pgto/DDF próprios da tabela, com os dias contados a partir do vencimento de cada período
   const perInfo=PER[per];
-  const gg={periodo:per, moeda:ctx.moeda, dolar:g.dolar, tipo:'Data Fixa', validade:(perInfo?perInfo.B4:''), ddf:''};
-  const sol=solvePrice(gg,row,+marginVal,'','');
+  const gg=ctx.validade
+    ? {periodo:per, moeda:ctx.moeda, dolar:g.dolar, tipo:ctx.tipo, validade:ctx.validade, ddf:ctx.ddf}
+    : {periodo:per, moeda:ctx.moeda, dolar:g.dolar, tipo:'Data Fixa', validade:(perInfo?perInfo.B4:''), ddf:''};
+  // além da meta de Presumida, respeita o piso de P&L: vale o preço mais alto (o desconto mais restritivo) dos dois
+  const plMin=(ctx.plMin!==''&&ctx.plMin!=null&&!Number.isNaN(+ctx.plMin))?+ctx.plMin:'';
+  const sol=solvePrice(gg,row,+marginVal,plMin,'');
   if(sol.err) return {cls:'dt-val-empty',txt:'—'};
-  return {cls:cls(sol.fwd.AA),txt:fmt(sol.fwd.AA,'US$ '),val:sol.fwd.AA,aiVal:sol.fwd.AI,aiTxt:fmt(sol.fwd.AI,'US$ '),priceVal:sol.price,priceTxt:fmt(sol.price,'US$ ')};
+  return {bindPL:(sol.both&&sol.binding==='P&L'),cls:cls(sol.fwd.AA),txt:fmt(sol.fwd.AA,'US$ '),val:sol.fwd.AA,aiVal:sol.fwd.AI,aiTxt:fmt(sol.fwd.AI,'US$ '),priceVal:sol.price,priceTxt:fmt(sol.price,'US$ ')};
 }
 
 function dtRenderTable(){
@@ -1430,7 +1444,8 @@ function dtRenderTable(){
 function dtCellHtml(v){
   return v.txt
     + (v.aiTxt? `<span class="dt-pl">P&amp;L ${v.aiTxt}</span>` : '')
-    + (v.priceTxt? `<span class="dt-pl">Preço ${v.priceTxt}</span>` : '');
+    + (v.priceTxt? `<span class="dt-pl">Preço FOB ${v.priceTxt}</span>` : '')
+    + (v.bindPL? `<span class="dt-pl neg">limitado pelo P&amp;L mínimo</span>` : '');
 }
 
 function dtUpdateRow(tr,prod){
@@ -1449,6 +1464,14 @@ function dtUpdateRow(tr,prod){
 document.getElementById('dtable_toggle').addEventListener('click',()=>{
   document.getElementById('dtable_panel').classList.toggle('collapsed');
 });
+function dtToggleDDF(){ document.getElementById('dt_ddf_wrap').style.display=document.getElementById('dt_tipo').value==='DDF'?'flex':'none'; }
+document.getElementById('dt_validade').addEventListener('input',e=>{
+  let v=e.target.value.replace(/\D/g,'');
+  if(v.length>2) v=v.slice(0,2)+'/'+v.slice(2);
+  if(v.length>5) v=v.slice(0,5)+'/'+v.slice(5,9);
+  e.target.value=v;
+});
+document.getElementById('dt_tipo').addEventListener('change',dtToggleDDF);
 document.querySelector('.dtable-ctx').addEventListener('input',dtRenderTable);
 document.querySelector('.dtable-ctx').addEventListener('change',dtRenderTable);
 document.getElementById('dt_addperiod').addEventListener('click',()=>{
@@ -1507,7 +1530,7 @@ document.getElementById('dt_copy').addEventListener('click',async ()=>{
   const status=document.getElementById('dt_copy_status');
   const g=getGlobals(); const ctx=dtGetCtx();
   if(dtProdList.length===0){ status.className='upd-status err'; status.textContent='Nada para copiar.'; return; }
-  const lines=['Produto\tExp\tMeta Margem Presumida\t'+dtPeriods.flatMap(p=>[p+' Desconto',p+' P&L',p+' Preço']).join('\t')];
+  const lines=['Produto\tExp\tMeta Margem Presumida\t'+dtPeriods.flatMap(p=>[p+' Desconto',p+' P&L',p+' Preço FOB']).join('\t')];
   dtProdList.forEach(entry=>{
     const prod=entry.produto;
     const effExp=dtEffectiveExp(entry,ctx,g);
